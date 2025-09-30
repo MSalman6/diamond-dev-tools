@@ -99,7 +99,7 @@ npm run remotenet-deploy-from-localnet -- -a
 # npm run remotenet-git-reset -- -a
 
 # run the update from git async first.
-npm run remotenet-build-from-source-parallel -- -a
+npm run remotenet-run-build-from-source-fast -a
 # confirm the success by doing the update sync.
 npm run remotenet-binary-update-from-git -- -a
 ```

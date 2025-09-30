@@ -27,7 +27,7 @@ function timestampToNumber(value: number | string) : number {
 
 async function doLoggings() {
   const latestBlockNumber = await web3.eth.getBlockNumber();
-  let numberOfBlocksToLog = 20000;
+  let numberOfBlocksToLog = 1000;
 
   if ( numberOfBlocksToLog > latestBlockNumber ){
     numberOfBlocksToLog = latestBlockNumber;
@@ -35,10 +35,9 @@ async function doLoggings() {
 
   const blockInfos = new Array<BlockInfo>();
 
-  let startBlock = Math.max(latestBlockNumber - numberOfBlocksToLog, 0);
 
 
-  for(let blockNumber = startBlock; blockNumber <= latestBlockNumber; blockNumber++) {
+  for(let blockNumber = latestBlockNumber - numberOfBlocksToLog; blockNumber <= latestBlockNumber; blockNumber++) {
     const block = await web3.eth.getBlock(blockNumber);
     //console.log('block: ', block);
     // block.timestamp

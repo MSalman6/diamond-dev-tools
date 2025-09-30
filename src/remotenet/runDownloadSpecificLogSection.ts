@@ -24,11 +24,7 @@ async function run() {
   const tx = 'could not be processed due to missing/mismatching network info';
 
   //console.log(`creating filtered log file for tx ${date}`);
-  //const command = `grep '${tx}' ${remoteDirectory}parity.log | sed '/Accepted a new tcp connection from/d' > ${remoteDirectory}${outputFileRemote}`;
-
-  //const command = `grep '${tx}' ${remoteDirectory}diamond-node.log | sed '/Accepted a new tcp connection from/d' > ${remoteDirectory}${outputFileRemote}`;
-  const command = `cp ${remoteDirectory}diamond-node.log ${remoteDirectory}${outputFileRemote}`;
-
+  const command = `grep '${tx}' ${remoteDirectory}parity.log | sed '/Accepted a new tcp connection from/d' > ${remoteDirectory}${outputFileRemote}`;
 
   const nodes = await getNodesFromCliArgs();
 

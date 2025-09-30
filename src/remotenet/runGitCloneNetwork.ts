@@ -18,7 +18,7 @@ async function run() {
 
     const alreadyExists = false;
 
-    const lsResult = cmdR(n.sshNodeName(), 'ls').split('\n');
+    const lsResult = cmdR(n.sshNodeName(), 'ls');
 
     if (lsResult.includes(installDir)) {
       console.log('Directory already exists! no further actions on node', n.sshNodeName());

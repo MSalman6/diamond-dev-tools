@@ -224,7 +224,9 @@ async function run() {
             await eventProcessor.processEvents();
             await validatorObserver.updateValidators(currentBlockNumber, posdaoEpoch);
 
-            await bonusScoreProcessor.processBonusScore(currentBlockNumber, allPools);
+            // Get all current pools for bonus score processing
+            const currentAllPools = await contractManager.getAllPools(currentBlockNumber);
+            await bonusScoreProcessor.processBonusScore(currentBlockNumber, currentAllPools);
 
             // if there is still no change, sleep 1s
             while (currentBlockNumber == latest_known_block) {

@@ -38,8 +38,7 @@ export async function printContractDetails(contractManager: ContractManager, nod
         console.log("keyGenHistoryContract:", await validatorSet.methods.keyGenHistoryContract().call());
         console.log("stakingContract:", await validatorSet.methods.stakingContract().call());
         console.log("randomContract:", await validatorSet.methods.randomContract().call());
-        const blockRewardContractAddress = await validatorSet.methods.blockRewardContract().call();
-        console.log("blockRewardContract:", blockRewardContractAddress);
+        console.log("blockRewardContract:", await validatorSet.methods.blockRewardContract().call());
         console.log("validatorInactivityThreshold", await validatorSet.methods.validatorInactivityThreshold().call());
         // console.log("blockRewardContract:", await validatorSet.methods.perm blockRewardContract().call());
 
@@ -48,18 +47,6 @@ export async function printContractDetails(contractManager: ContractManager, nod
 
         const blockGasLimit = await permission.methods.blockGasLimit().call();
         console.log("blockGasLimit: ", blockGasLimit);
-
-        const rewardContract = await contractManager.getRewardHbbft();
-        const delta = await rewardContract.methods.deltaPot().call();
-        const reinsert = await rewardContract.methods.reinsertPot().call();
-
-        const totalBalance = await web3.eth.getBalance(rewardContract.options.address);
-
-        console.log("Reward contract = delta: ", delta, " reinsert: ", reinsert, "total: ", totalBalance);
-
-        if (!web3.utils.toBN(delta).add(web3.utils.toBN(reinsert)).eq(web3.utils.toBN(totalBalance))) {
-            console.error("WARNING: the sum of delta and reinsert pot are not equal to total balance.");
-        }
     }
 
     const keyGenHistoryContract = await contractManager.getKeyGenHistory();

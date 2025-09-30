@@ -52,6 +52,7 @@ export async function printState(nodeManager: NodeManager, contractManager: Cont
   for (const v of validators) {
      let part = await keyGenHistory.methods.parts(v).call();
      let numOfAcks = await keyGenHistory.methods.getAcksLength(v).call();
+     
      let partByteLength = part === null ? 0 : contractManager.web3.utils.hexToBytes(part).length;
 
      console.log(`valdidator: ${v} # acks: ${numOfAcks} part: ${partByteLength}`);
@@ -85,13 +86,7 @@ export async function printState(nodeManager: NodeManager, contractManager: Cont
       // const encodedABI = validatorSet.methods.validatorAvailableSince(stakingAddress).encodeABI();
       // console.log(`call Encoded for ${s.address}:`, encodedABI);
       const callResult = await validatorSet.methods.validatorAvailableSince(s.address).call();
-
-
-      const stakingAddress = await contractManager.getAddressStakingByMining(s.address);
-      const totalStake = await contractManager.getTotalStake(stakingAddress);
-
-      const totalStakeString = totalStake.div(1e18).toString(10);
-      console.log(`${s.address} ${totalStakeString} available since: ${callResult} ${new Date(Number.parseInt(callResult) * 1000).toUTCString()}`);
+      console.log(`${s.address} available since: ${callResult} ${new Date(Number.parseInt(callResult) * 1000).toUTCString()}`);
       //s.address
     }
   });

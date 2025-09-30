@@ -8,7 +8,6 @@ import { Dictionary } from "underscore";
 import BigNumber from "bignumber.js";
 import deepEqual from "deep-equal";
 import { ConnectivityTrackerWatchdogPlugin } from "./watchdog-connectivity-tracker";
-import { blockTimeAsUTC } from "./utils/dateUtils";
 
 
 
@@ -154,7 +153,6 @@ export class Watchdog {
           const validatorAvailableSince = new BigNumber(await validatorSet.methods.validatorAvailableSince(miningAddress).call());
           console.log(`pool ${poolAddress} has enough stake, available since: ${validatorAvailableSince.toNumber()} .it should be available....`);
 
-          //stakingContract.actualEpochEndTime()
 
           //const restartCausedByEmptyBlocks = this.contractManager.web3.eth 
 
@@ -253,10 +251,6 @@ export class Watchdog {
         return;
       }
 
-      const stakingContract = await this.contractManager.getStakingHbbft();
-      const currentKeyGenExtraTimeWindow = Number.parseInt(await stakingContract.methods.currentKeyGenExtraTimeWindow().call());
-      
-
       this.latestKnownBlock = currentBlock;
       
       let earlyEpochEndFlag = await (await this.contractManager.getRewardHbbft()).methods.earlyEpochEnd().call({}, this.latestKnownBlock);
@@ -267,20 +261,19 @@ export class Watchdog {
       }
 
       let block = await this.contractManager.web3.eth.getBlock(currentBlock);
-      let blockTime = blockTimeAsUTC(block.timestamp);
-      console.log(`processing block: ${this.latestKnownBlock} : ${blockTime.toLocaleTimeString()} txs: `, block.transactions.length);
+      console.log(`processing block: ${this.latestKnownBlock} txs: `, block.transactions.length);
       
-      
-      this.lastEpochSwitchTime = Number.parseInt(await stakingContract.methods.stakingEpochStartTime().call());
-      this.epochLengthSetting = Number.parseInt(await stakingContract.methods.stakingFixedEpochDuration().call());
+
+      this.lastEpochSwitchTime = Number.parseInt(await (await this.contractManager.getStakingHbbft()).methods.stakingEpochStartTime().call());
+      this.epochLengthSetting = Number.parseInt(await (await this.contractManager.getStakingHbbft()).methods.stakingFixedEpochDuration().call());
       let oldEpochNumber = this.latestKnownEpochNumber;
-      let newEpochNumber =  Number.parseInt(await stakingContract.methods.stakingEpoch().call());
+      let newEpochNumber =  Number.parseInt(await (await this.contractManager.getStakingHbbft()).methods.stakingEpoch().call());
 
       this.latestKnownEpochNumber = newEpochNumber;
       const pendingValidators = await this.contractManager.getValidatorSetHbbft().methods.getPendingValidators().call();
 
       if (newEpochNumber > oldEpochNumber) {
-        if (oldEpochNumber != 0 && newEpochNumber != oldEpochNumber + 1) {
+        if (newEpochNumber != oldEpochNumber + 1) {
           console.log(`Strange increase of Epoch Number: Epoch number jumped from ${oldEpochNumber} to ${newEpochNumber}`);
         }
 
@@ -289,10 +282,7 @@ export class Watchdog {
 
       if (!Watchdog.deepEquals(pendingValidators, this.pendingValidators)) {
         if (logValidatorChanges) {
-          const epochEndTime = await this.contractManager.getActualEpochEndTime();
-          const keyGenRound = await this.contractManager.getKeyGenRound();
-          console.log(`epoch ${this.latestKnownEpochNumber} (round: ${keyGenRound}): (end time: ${epochEndTime.toLocaleString()}) switched pending validators from (${this.pendingValidators.length}) - to (${pendingValidators.length})`, this.pendingValidators, pendingValidators);
-          console.log("currentKeyGenExtraTimeWindow:", currentKeyGenExtraTimeWindow);
+          console.log(`epoch ${this.latestKnownEpochNumber}: switched pending validators from (${this.pendingValidators.length}) - to (${pendingValidators.length})`, this.pendingValidators, pendingValidators);
           console.log(`Difference: `, Watchdog.createDiffgram(this.pendingValidators, pendingValidators));
         }
         this.pendingValidators = pendingValidators;
@@ -301,10 +291,7 @@ export class Watchdog {
       const currentValidators = await this.contractManager.getValidatorSetHbbft().methods.getValidators().call();
       if (!Watchdog.deepEquals(currentValidators, this.currentValidators)) {
         if (logValidatorChanges) {
-          const keyGenRound = await this.contractManager.getKeyGenRound();
-          const epochEndTime = await this.contractManager.getActualEpochEndTime();
-          
-          console.log(`epoch ${this.latestKnownEpochNumber} (${keyGenRound}) end: ${epochEndTime.toLocaleString()}: switched currentValidators  from ${this.currentValidators.length} - to ${currentValidators.length}`, this.currentValidators, currentValidators);
+          console.log(`epoch ${this.latestKnownEpochNumber}: switched currentValidators  from - to`, this.currentValidators, currentValidators);
         }
         
         //console.log(`Difference: `, Watchdog.createDiffgram(this.currentValidators, currentValidators));
@@ -383,62 +370,14 @@ export class Watchdog {
       const numberOfAcksWritten = Number.parseInt(numberOfFragmentsWritten[1]);
 
       if (this.numberOfPartsWritten != numberOfPartsWritten) {
+        console.log(`Number of Parts written changed from ${this.numberOfPartsWritten} to ${numberOfPartsWritten}`);
 
-        // get the nodes who wrote the parts.
-
-        let validatorsOK = [];
-        let validatorsMissing = [];
-
-        for (let validator of this.pendingValidators) {
-          let key = await this.contractManager.getKeyPART(validator);
-
-          //console.log(`Key Part for validator ${validator} : ${key}`);
-
-          if (key != null && key.length > 3) {
-            validatorsOK.push(validator);
-          } else {
-            validatorsMissing.push(validator);
-          }
-        }
-        console.log(`Number of Parts written changed from ${this.numberOfPartsWritten} to ${numberOfPartsWritten}.}`);
-
-        if (validatorsOK.length > 0) {
-          console.log("Ok: \n", validatorsOK);
-        }
-        if (validatorsMissing.length > 0) {
-          console.log("Missing :\n", validatorsMissing);
-        }
-        
         this.numberOfPartsWritten = numberOfPartsWritten;
       }
 
 
       if (this.numberOfAcksWritten != numberOfAcksWritten) {
-
-
-        let validatorsOK = [];
-        let validatorsMissing = [];
-
-        for (let validator of this.pendingValidators) {
-          let keys = await this.contractManager.getKeyACKSNumber(validator);
-
-          
-          if (keys > 0) {
-            validatorsOK.push(validator);
-          } else {
-            validatorsMissing.push(validator);
-          }
-        }
-
         console.log(`Number of ACKS written changed from ${this.numberOfAcksWritten} to ${numberOfAcksWritten}`);
-
-        if (validatorsOK.length > 0) {
-          console.log("Ok: \n", validatorsOK);
-        }
-        if (validatorsMissing.length > 0) {
-          console.log("Missing :\n", validatorsMissing);
-        }
-        
         this.numberOfAcksWritten = numberOfAcksWritten;
       }
 

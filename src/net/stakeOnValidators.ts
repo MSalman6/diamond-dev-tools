@@ -71,9 +71,6 @@ export async function stakeOnValidators(autostakeCount = 0, stakeOnSpecificValid
   let currentTimestamp = (await web3.eth.getBlock('latest')).timestamp;
   console.log('current Time:', currentTimestamp);
 
-  console.log('leading account: ', web3.eth.defaultAccount, " : ", await web3.eth.getBalance(web3.eth.defaultAccount!));
-
-
   let currentValidators = await validatorSet.methods.getValidators().call();
 
   currentValidators = currentValidators.map(x => x.toLowerCase());
@@ -215,19 +212,10 @@ export async function stakeOnValidators(autostakeCount = 0, stakeOnSpecificValid
 
             console.log(`Adding new Pool: ${validator} ${publicKey} ${ip}`);
             const zeroAddress = "0x0000000000000000000000000000000000000000";
-            const addPoolTx = staking.methods.addPool(validator, zeroAddress, 0, publicKey, ip).send({ from: keypair.address, value: minStakeBN.toString(), gas: '2100000', gasPrice: defaultGasPrice });
+            const addPoolResult = await staking.methods.addPool(validator, zeroAddress, 0, publicKey, ip).send({ from: keypair.address, value: minStakeBN.toString(), gas: '2100000', gasPrice: defaultGasPrice });
             //add this private key to the web3 context.
-            
-            addPoolTx.on('transactionHash', (hash) => {
-              console.log(`adding pool transaction hash: `, hash);
-            });
-
-            
-            const addPoolResult = await addPoolTx;
-            
             console.log(`add Pool transaction: `, addPoolResult.transactionHash);
 
-            
             result.push(new StakingOnValidatorsResultDetail(publicKey, validator, keypair.address, ip, addPoolResult.transactionHash));
 
             break;

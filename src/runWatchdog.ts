@@ -37,7 +37,7 @@ async function runWatchdog() : Promise<Watchdog> {
       await nodeManager.startAllNodes();
       // todo: implement spin wait here until RPC ius reachable as alternative.
       console.log('waiting 10 seconds for booting network.');
-      await nodeManager.awaitRpcReady();
+      await sleep(10000);
       watchdog.startWatching();
 
     } else {

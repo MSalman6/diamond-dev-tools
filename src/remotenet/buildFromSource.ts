@@ -7,15 +7,15 @@ export function getBuildFromSourceCmd(checkout: boolean = false, copy: boolean =
   const config = ConfigManager.getConfig();
   const installDir = ConfigManager.getNetworkConfig().installDir;
   const diamondNodeBranch = ConfigManager.getNodeBranch();
-  const remoteAlias = ConfigManager.getNodeRepoAlias();
+
   //const x = ConfigManager.getNetworkConfig().
   const profile = config.nodeProfile;
 
-  const deadlockDetection = ConfigManager.getDiamondNodeDeadlockDetection();
+  const deadlockDetection = ConfigManager.getOpenEthereumDeadlockDetection();
   const dir = `~/${installDir}/diamond-node-git/`;
 
-  let checkoutCMD = checkout ? ` && git checkout  --track ${remoteAlias}/${diamondNodeBranch} ` : '';
-  let copyCMD = copy ? ` && cp target/${profile}/diamond-node ../diamond-node` : '';
+  let checkoutCMD = checkout ? `&& git checkout ${diamondNodeBranch} ` : '';
+  let copyCMD = copy ? `&& cp target/${profile}/diamond-node ../diamond-node` : '';
 
   //let singleThreadOption = '-j 1 ';
   let singleThreadOption = '';

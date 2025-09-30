@@ -9,8 +9,6 @@ import { stopRemoteNode } from '../remotenet/stopRemoteNode';
 import { ContractManager } from '../contractManager';
 import axios from 'axios';
 import { sleep } from '../utils/time';
-import { negate } from 'underscore';
-import { LocalnetBuilder } from '../localnet/localnet-builder';
 
 export class NodeState {
 
@@ -19,9 +17,7 @@ export class NodeState {
   public isStarted = false;
 
   isDeactivated: boolean = false;
-  isShuttingDown: boolean = false;
 
-  public restartAfterShutdown: boolean = true; //todo: false as default
 
   public constructor(public nodeID: number, public publicKey: string | undefined, public address: string | undefined) {
   }
@@ -39,9 +35,12 @@ export class NodeState {
 
   public static getNodeDirAbsolute(nodeId: number,): string {
 
-    const nodesDir = ConfigManager.getNodesDirAbsolut();
+    const nodesDir = ConfigManager.getNodesDir();
+
+    const cwd = process.cwd();
+
     let relative = NodeState.getNodeDirRelative(nodeId);
-    return `${nodesDir}/${relative}}`;
+    return `${cwd}/testnet/${nodesDir}/${relative}}`;
   }
 
   public static startNode(nodeId: number, extraFlags: string[] = []): child_process.ChildProcess {
@@ -101,15 +100,10 @@ export class NodeState {
     const spawned = child_process.spawn(resolvedPath, flags, spawnOption);
 
     spawned.once('exit', (code, signal) => {
-
       console.log(`node ${nodesNameDir} exited with code: ${code} and signal: ${signal}`);
     });
 
-
-
     spawned.once('close', (code, signal) => {
-
-     
       console.log(`node ${nodesNameDir} closed with code: ${code} and signal: ${signal}`);
     });
 
@@ -135,6 +129,11 @@ export class NodeState {
     console.log(`node ${nodesNameDir} spawned!`);
 
     return spawned;
+    // //child_process.spawn()
+
+
+    // stdOut: ${stdout} \n
+    // stdErr: ${stderr}
 
   }
 
@@ -152,22 +151,13 @@ export class NodeState {
     //const extraFlags = '--tx-queue-mem-limit=1000 --no-persistent-txqueue'; //  --tx-queue-size=100000
     const extraFlags = ["--tx-queue-mem-limit=1000", "--no-persistent-txqueue", "--tx-queue-size=100000"];
 
-
-
     if (this.nodeID > 0) {
       this.childProcess = NodeState.startNode(this.nodeID, extraFlags);
     } else {
       this.childProcess = NodeState.startRpcNode(extraFlags);
     }
 
-    this.childProcess.once("close", (code, signal) =>  {
-      if (this.restartAfterShutdown && !this.isShuttingDown) {
-        this.isStarted = false;
-        this.start(force);
-      }
 
-    });
-    
     this.isStarted = true;
     console.log(`started child process with ID ${this.childProcess.pid}`);
   }
@@ -194,7 +184,6 @@ export class NodeState {
 
     let isExited = false;
 
-    this.isShuttingDown = true;
 
     this.childProcess.on("close", (x) => {
       console.log("closed!!", x);
@@ -226,8 +215,8 @@ export class NodeState {
     console.log('wait for exit');
     while (isExited === false) {
       //await setTimeout(() =>{}, 1000);
-      await sleep(1000);
-      process.stdout.write(`${this.nodeID},`);
+      await sleep(100);
+      process.stdout.write('.');
     }
   }
 
@@ -287,18 +276,12 @@ export class NodeManager {
 
   static s_instance = new NodeManager();
 
-  public network?: string;
-
-
-  public restartOnNodeShutdown = false;
 
   private constructor() {
 
   }
 
   public static setNetwork(network: string) {
-
-    this.s_instance.network = network;
     ConfigManager.setNetwork(network);
   }
 
@@ -324,65 +307,6 @@ export class NodeManager {
     const result = this.getNode(nodeID);
     result.start(force);
     return result;
-  }
-
-  async stopNode(node: number, force: boolean = false): Promise<void> {
-    return this.getNode(node).stop(force);
-  }
-
-  async stopNodes(nodes: number[]) {
-
-    let promises = new Array<Promise<void>>();
-    for (const n of nodes) {
-      promises.push(this.stopNode(n));
-    }
-
-    await Promise.all(promises);
-  }
-
-  public localNetworkExists(): boolean {
-    return fs.existsSync(ConfigManager.getLocalTargetNetworkFSDir(this.network));
-  }
-
-  public async createLocalNetwork() {
-
-    const network = this.network;
-    let targetNetworkLocation = ConfigManager.getLocalTargetNetworkFSDir(network);
-
-    if (this.localNetworkExists()) {
-        let files = fs.readdirSync(targetNetworkLocation);
-        console.log(files);
-        console.log('ERROR: target network already exists.', targetNetworkLocation);
-        console.log('aborting.');
-        process.exit(1);
-    }
-
-    let builderArgs = ConfigManager.getNetworkConfig(network);
-    //console.log('builderArgs:', builderArgs);
-    
-    let initialValidatorsCount = builderArgs.builder?.initialValidatorsCount || 1; 
-    let nodesCount = builderArgs.builder?.nodesCount || 4;
-
-    if (initialValidatorsCount > nodesCount) {
-        console.log('ERROR: initialValidatorsCount must be smaller than or equal to nodesCount');
-        process.exit(1);
-    }
-
-    let testnetName = ConfigManager.getChainName(network);
-    let localnetBuilder = builderArgs.builder ? LocalnetBuilder.fromBuilderArgs(testnetName , builderArgs.builder) : new LocalnetBuilder(testnetName, initialValidatorsCount, nodesCount);
-    await localnetBuilder.build(`${targetNetworkLocation}`);
-  }
-
-  public deleteLocalNetwork() {
-
-    const localDir = ConfigManager.getLocalTargetNetworkFSDir(this.network);
-  }
-
-
-  startNodes(nodes: number[]) {
-    for (const n of nodes) {
-      this.startNode(n);
-    }
   }
 
   public startRpcNode(force = false) {
@@ -432,19 +356,18 @@ export class NodeManager {
   }
 
   // stop's all validator nodes, but not the RPC Node
-  public async stopAllNodes(force = false) {
-
-    if (force) {
-      await Promise.all(this.nodeStates.map(n => { return n.stop(true)})); 
-    } else {
-      await Promise.all(this.nodeStates.filter(x => { x.isStarted }).map(n => { return n.stop(false)}));
-    }
+  public stopAllNodes(force = false) {
+    this.nodeStates.forEach((n) => {
+      if (n.isStarted) {
+        n.stop(force);
+      }
+    });
   }
 
-  public async stopRpcNode(force = false) {
+  public stopRpcNode(force = false) {
     if (this.rpcNode) {
       if (this.rpcNode.isStarted) {
-        await this.rpcNode.stop(force);
+        this.rpcNode.stop(force);
       }
     }
   }

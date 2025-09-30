@@ -40,3 +40,11 @@ services:
       - monitor-net
     labels:
       org.label-schema.group: "monitoring"
+  grafana_renderer:
+    image: grafana/grafana-image-renderer:latest
+    ports:
+      - "3001:8081"
+    networks:
+      - monitor-net
+    labels:
+      org.label-schema.group: "monitoring"

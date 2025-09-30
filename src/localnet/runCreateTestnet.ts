@@ -39,6 +39,24 @@ async function run() {
     let localnetBuilder = builderArgs.builder ? LocalnetBuilder.fromBuilderArgs(testnetName , builderArgs.builder) : new LocalnetBuilder(testnetName, initialValidatorsCount, nodesCount);
     localnetBuilder.build(`${targetNetworkLocation}`);
 
+    
+    // if (process.argv.length === 2) {
+    //     printHelp();
+    //     process.exit(1);
+    // }
+
+    // if (process.argv.length > 4) {
+    //     printHelp();
+    //     process.exit(1);
+    // }
+
+    // const numInitialValidators = parseInt(process.argv[2], 10);
+    // let numNodes = numInitialValidators;
+
+    // if (process.argv.length === 4) {
+    //     numNodes = parseInt(process.argv[3], 10);
+    // }
+
 }
 
 run().catch((reason) => {

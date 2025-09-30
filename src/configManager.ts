@@ -6,8 +6,13 @@ import { generateAddressesFromSeed } from './utils';
 import { ContinuousTransactionsSender } from './continuousTransactionsSender';
 import { Account, AddedAccount } from 'web3-core';
 import { parse } from 'ts-command-line-args';
-import { parseNetworkArgs } from './remotenet/remotenetArgs';
 
+
+export interface NodeArgs {
+    Footprint: {
+        cache_size: number;
+    }
+}
 
 export interface NetworkBuilderArgs {
     initialValidatorsCount: number,
@@ -20,7 +25,7 @@ export interface NetworkBuilderArgs {
     txQueuePerSender?: number,
     hbbftArgs?: {},
     contractArgs?: {},
-    nodeArgs?: Array<string>,
+    nodeArgs?: NodeArgs,
 }
 
 // "name": "local",
@@ -46,7 +51,7 @@ export interface Network {
     nodeRepoBranch: string | undefined,
     nodeBuildScript: string | undefined,
     rustVersion: string | undefined,
-    diamondNodedDeadlockDetection: boolean,
+    openEthereumDeadlockDetection: boolean,
     builder: NetworkBuilderArgs | undefined
 }
 
@@ -70,8 +75,9 @@ export interface TestConfig {
     logToTerminal: boolean | undefined,
     logToFile: boolean | undefined,
     maximumPoolSize: number | undefined
-    defaultNodeArgs?: Array<string>,
     networks: Array<Network>,
+    bonusScoreSystemAddress?: string,
+    bonusScoreSystemABI?: any[]
 }
 
 
@@ -99,8 +105,6 @@ if (args.network) {
 
 
 export class ConfigManager {
-
-    
     static getBuildFromSourceScript() {
 
       
@@ -109,8 +113,8 @@ export class ConfigManager {
     }
 
 
-    static getChainName(network?: string) {
-        let builderArgs = ConfigManager.getNetworkConfig(network);
+    static getChainName() {
+        let builderArgs = ConfigManager.getNetworkConfig();
         return builderArgs.name.startsWith("nodes-") ? builderArgs.name.substring("nodes-".length) : builderArgs.name;
     }
 
@@ -126,9 +130,9 @@ export class ConfigManager {
         // throw new Error('Method not implemented.');
     }
 
-    static getDiamondNodeDeadlockDetection() : boolean {
+    static getOpenEthereumDeadlockDetection() : boolean {
       
-        return this.getNetworkConfig().diamondNodedDeadlockDetection;
+        return this.getNetworkConfig().openEthereumDeadlockDetection;
     }
 
     static getNetworkRepo() : string {
@@ -164,8 +168,8 @@ export class ConfigManager {
         return globalConfig.nodeRepoUrl;
     }
 
-    static getLocalTargetNetworkFSDir(networkName?: string) : string { 
-        return `testnet/${this.getNetworkConfig(networkName).nodesDir}`;
+    static getLocalTargetNetworkFSDir() : string { 
+        return `testnet/${this.getNetworkConfig().nodesDir}`;
     }
 
     static getTargetNetwork() : string {
@@ -186,24 +190,10 @@ export class ConfigManager {
     static getRemoteScreenName() {
         return this.getChainName();
     }
-    static getNodesDir(networkName?: string ): string {
+    static getNodesDir(): string {
       
-        const network = this.getNetworkConfig(networkName);
+        const network = this.getNetworkConfig();
         return network.nodesDir;
-    }
-
-
-    /// absolute base path to the general nodes directory.
-    /// points to the directory where the individual NETWORKS are stored.
-    /// each individual network has its own nodes.
-    static getNodesDirBase() {
-        return `${process.cwd()}/testnet/`;
-    }
-
-    /// absolute base path to the nodes directory.
-    /// points to the directory where the individual nodes instances are stored.
-    static getNodesDirAbsolut(network?: string) {
-        return `${process.cwd()}/testnet/${this.getNetworkConfig(network).nodesDir}`;
     }
 
     static getRemoteInstallDir(): string {
@@ -223,7 +213,7 @@ export class ConfigManager {
     }
 
 
-    public static getNetworkConfig(networkName?: string): Network 
+    public static getNetworkConfig(): Network 
     {   
         let config = ConfigManager.getConfig();
 
@@ -231,10 +221,7 @@ export class ConfigManager {
 
         for (let network of config.networks) { 
             // console.log('network: ', network);
-
-            let networkToSearchFor = networkName ?? config.network;
-
-            if (network.name == networkToSearchFor) {
+            if (network.name == config.network) {
                 //console.log('network found!!: ', network);
                 
                 if (process.env["RPC_URL"]) {
@@ -244,12 +231,6 @@ export class ConfigManager {
 
                 if (process.env["POSTGRES_INSTANCE"]) {
                     network.db = process.env["POSTGRES_INSTANCE"];
-                }
-
-                if (network.builder) {
-                    if (!network.builder.nodeArgs) {
-                        network.builder.nodeArgs = config.defaultNodeArgs;
-                    }
                 }
                 
                 return network;
@@ -264,16 +245,6 @@ export class ConfigManager {
 
 
     public static getConfig(): TestConfig {
-
-
-        const args = parseNetworkArgs();
-
-        if (args.network ) {
-
-            console.log('overwriting network from CLI args: ', args.network);
-            ConfigManager.setNetwork(args.network);
-            config.network = args.network;
-        }
         
         const result = config;
 

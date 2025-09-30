@@ -2,8 +2,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { cmd } from '../remoteCommand';
-import { ConfigManager, NetworkBuilderArgs } from '../configManager';
-import { parse, stringify } from 'smol-toml'
+import { ConfigManager, Network, NetworkBuilderArgs, NodeArgs } from '../configManager';
 
 export class LocalnetBuilder {
 
@@ -12,7 +11,7 @@ export class LocalnetBuilder {
 
 
 
-    public constructor(public name: string, public numInitialValidators: number, public numNodes: number, public useContractProxies = true, public metricsPortBase: number = 48700, public txQueuePerSender: number = Number.NaN, public portBase: number = Number.NaN, public portBaseRPC: number = Number.NaN, public portBaseWS: number = Number.NaN, public networkID: number = 777012, public hbbftArgs: { [index: string]: any } = {}, public contractArgs: { [index: string]: any } = {}, public nodeArgs: string[] | undefined = undefined) {
+    public constructor(public name: string, public numInitialValidators: number, public numNodes: number, public useContractProxies = true, public metricsPortBase: number = 48700, public txQueuePerSender: number = Number.NaN, public portBase: number = Number.NaN, public portBaseRPC: number = Number.NaN, public portBaseWS: number = Number.NaN, public networkID: number = 777012, public hbbftArgs: { [index: string]: any } = {}, public contractArgs: { [index: string]: any } = {}, public nodeArgs: NodeArgs | undefined = undefined) {
 
     }
 
@@ -89,7 +88,6 @@ export class LocalnetBuilder {
         await this.copyNodeFilesToTargetDirectory(targetDirectory);
 
         this.applyTomlManipulations();
-        console.log("finished building in:", targetDirectory);
     }
 
     private writeEnv(envName: string, envDefaultValue: string): void {
@@ -137,12 +135,12 @@ export class LocalnetBuilder {
 
         const entries = Object.entries(this.hbbftArgs);
         for (const i in entries) {
-
+        
             const entry = entries[i];
             const key = entry[0];
             const value = entry[1];
             console.log("setting param: ", key, value);
-
+            
             spec.engine.hbbft.params[key] = value;
         }
         //spec.engine.hbbft.params
@@ -156,36 +154,36 @@ export class LocalnetBuilder {
         fs.writeFileSync(specFilePOS, JSON.stringify(spec, null, 4));
     }
 
-    private deepMerge(obj1: any, obj2: any): any {
-        const result = { ...obj1 };
-      
-        for (const key in obj2) {
-          if (obj2[key] && typeof obj2[key] === 'object' && !Array.isArray(obj2[key])) {
-            result[key] = this.deepMerge(obj1[key] || {}, obj2[key]);
-          } else {
-            result[key] = obj2[key];
-          }
-        }
-      
-        return result;
-      }
-
-
     private applyTomlManipulation(i: number) {
-        
+        let tomlLocation = this.getTargetNodeTomlFile(i);
+        let toml = fs.readFileSync(tomlLocation, { encoding: "utf-8" });
+
         if (this.nodeArgs) {
 
-            const tomlLocation = this.getTargetNodeTomlFile(i);
-            const toml = fs.readFileSync(tomlLocation, { encoding: "utf-8" });
+            toml += `\n[footprint]\ncache_size = ${this.nodeArgs.Footprint.cache_size}\n`;
 
-            const originalConfig = parse(toml);
-            const overwriteConfig = parse(this.nodeArgs.join("\n"));
-    
-            const result = this.deepMerge(originalConfig, overwriteConfig);
-            const newFile = stringify(result);
+            // todo: be more flexible here, so we dont need to support all config sections.
+            // maybe we should consider here a full overlay of all settings.
+            // this would allow for example target log levels.
 
-            fs.writeFileSync(tomlLocation, newFile, { encoding: "utf-8" });
+            console.log("setting Footprint and co:", tomlLocation);
+
         }
+
+        const tomlLines = toml.split('\n');
+
+        // const loggingLineIndex = tomlLines.findIndex((line) => line.startsWith("logging") );
+        // if (loggingLineIndex > -1) {
+        //     tomlLines[loggingLineIndex] = `logging = "txqueue=trace,consensus=debug,engine=debug,tx_own=trace"`;
+        // } else {
+        //     console.error(tomlLines);
+        //     console.error(loggingLineIndex);
+        //     throw new Error("could not find logging line in toml file.");
+        // }
+
+        toml = tomlLines.join('\n');
+
+        fs.writeFileSync(tomlLocation, toml, { encoding: "utf-8" });
     }
 
     private applyTomlManipulations() {
@@ -383,10 +381,6 @@ export class LocalnetBuilder {
         if (Number.isInteger(this.portBaseWS)) {
             args.push(`--port_base_ws=${this.portBaseWS}`);
         }
-
-        // if (this.nodeArgs && this.nodeArgs.logging) {
-        //     args.push(`--logging="${this.nodeArgs.logging}"`);
-        // }
 
         const generatorDirRelative = '../../../diamond-node/crates/ethcore/src/engines/hbbft/hbbft_config_generator';
         const generatorDir = path.join(__dirname, generatorDirRelative);

@@ -38,8 +38,6 @@ export class FastTxSender {
 
   currentDispatchedTransactions = 0;
 
-  sleepDurationOnToManyTransactions = 100;
-
   public constructor(public web3: Web3) {
 
     // get rpcJsonHttpEndpoint from web3
@@ -211,7 +209,7 @@ export class FastTxSender {
           // to many transactions in queue.
           // wait, and try again soon. (recursive enter)
           console.log("to many transaction in queue - waiting and retrying.");
-          sleep(this.sleepDurationOnToManyTransactions).then(() => {
+          sleep(1).then(() => {
             self.sendSingleTxRaw(transactionIndex);
           });
           return

@@ -40,7 +40,6 @@ import { BonusScoreSystem, TxPermissionHbbft } from './abi/contracts';
 import JsonTxPermissionHbbft from './abi/json/TxPermissionHbbft.json';
 import { parseEther } from './utils/ether';
 import { h2bn, h2n, toNumber } from './utils/numberUtils';
-import { blockTimeAsUTC } from './utils/dateUtils';
 
 export enum KeyGenMode {
   NotAPendingValidator = 0,
@@ -109,7 +108,6 @@ export class NetworkAddress {
 export class ContractManager {
 
 
-
   private cachedValidatorSetHbbft?: ValidatorSetHbbft;
   private cachedStakingHbbft?: StakingHbbft;
   private cachedKeyGenHistory?: KeyGenHistory;
@@ -131,12 +129,6 @@ export class ContractManager {
   */
   public static get(): ContractManager {
     const web3 = ConfigManager.getWeb3();
-    const contractManager = new ContractManager(web3);
-    return contractManager;
-  }
-
-  public static getForNetwork(networkName: string): ContractManager {
-    const web3 = ConfigManager.getWeb3()
     const contractManager = new ContractManager(web3);
     return contractManager;
   }
@@ -206,6 +198,8 @@ export class ContractManager {
 
     let permission = this.getContractPermission();
     let connectivityTrackerAddress = await permission.methods.connectivityTracker().call();
+
+    console.log(`connectivityTrackerAddress: ${connectivityTrackerAddress}`);
 
     const abi: any = JsonConnectivityTrackerHbbft.abi;
     let result: any = new this.web3.eth.Contract(abi, connectivityTrackerAddress);
@@ -289,10 +283,6 @@ export class ContractManager {
 
     const networkConfig = ConfigManager.getNetworkConfig();
     return networkConfig.claimingPotAddress;
-  }
-
-  async getActualEpochEndTime() {
-    return blockTimeAsUTC(await (await this.getStakingHbbft()).methods.actualEpochEndTime().call());
   }
 
   public async getGovernancePot(blockNumber: BlockType): Promise<string> {
@@ -829,5 +819,9 @@ export class ContractManager {
     
     console.log("warn: getStakeLastEpoch() called. not implemented since https://github.com/DMDcoin/diamond-contracts-core/issues/43");
     return BigInt(0);
+  }
+
+  public async getValidatorAvailableSince(validator: string, blockNumber: BlockType = 'latest'): Promise<number> {
+    return toNumber(await this.getValidatorSetHbbft().methods.validatorAvailableSince(validator).call({}, blockNumber));
   }
 }

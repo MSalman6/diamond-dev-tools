@@ -28,7 +28,7 @@ import DatabaseSchema from './schema';
 
 import { ConfigManager } from '../configManager';
 import { DelegateRewardData } from '../contractManager';
-import { addressToBuffer, parseEther } from '../utils/ether';
+import { addressToBuffer, bufferToAddress, parseEther } from '../utils/ether';
 
 
 /// manage database connection.
@@ -87,6 +87,7 @@ export const DB_TABLES = [
   "posdao_epoch",
   "stake_history",
   "available_event",
+  "bonus_score_change_reasons",
   "bonus_score_history",
   "node",
   "headers"
@@ -300,6 +301,29 @@ export class DbManager {
     return all;
   }
 
+  /**
+   * Update a validator's bonus score in the node table
+   * @param poolAddress Pool address of the validator
+   * @param newScore New bonus score value
+   * @returns Updated node record
+   */
+  public async updateValidatorBonusScore(poolAddress: string, newScore: number): Promise<Node | null> {
+    try {
+      const sqlPoolAddress = addressToBuffer(poolAddress);
+      
+      const result = await node(this.connectionPool).update(
+        { pool_address: sqlPoolAddress },
+        { bonus_score: newScore }
+      );
+      
+      return result.length > 0 ? result[0] : null;
+      
+    } catch (error) {
+      console.error('❌ Error updating validator bonus score:', error);
+      throw error;
+    }
+  }
+
   public async insertAvailabilityEvent(params: AvailableEvent_InsertParameters): Promise<AvailableEvent> {
     const result = await available_event(this.connectionPool).insert(params);
 
@@ -509,6 +533,221 @@ export class DbManager {
     });
 
     return result[0];
+  }
+
+  /**
+   * Insert a bonus score change reason record
+   */
+  public async insertBonusScoreChangeReason(
+    poolAddress: string,
+    blockNumber: number,
+    epoch: number,
+    scoreChange: number,
+    previousScore: number,
+    newScore: number,
+    reason: string,
+    reasonData: any
+  ) {
+    try {
+      // Insert into bonus_score_change_reasons table
+      await this.connectionPool.query(sql`
+        INSERT INTO bonus_score_change_reasons (
+          node_pool_address,
+          block_number,
+          epoch,
+          score_change,
+          previous_score,
+          new_score,
+          reason,
+          reason_data,
+          created_at
+        ) VALUES (
+          ${addressToBuffer(poolAddress)},
+          ${blockNumber},
+          ${epoch},
+          ${scoreChange},
+          ${previousScore},
+          ${newScore},
+          ${reason},
+          ${JSON.stringify(reasonData)},
+          NOW()
+        )
+        ON CONFLICT (node_pool_address, block_number) 
+        DO UPDATE SET
+          epoch = EXCLUDED.epoch,
+          score_change = EXCLUDED.score_change,
+          previous_score = EXCLUDED.previous_score,
+          new_score = EXCLUDED.new_score,
+          reason = EXCLUDED.reason,
+          reason_data = EXCLUDED.reason_data,
+          created_at = EXCLUDED.created_at
+      `);
+
+      console.log(`✅ Stored bonus score change reason: ${poolAddress} block ${blockNumber} (${reason}: ${scoreChange > 0 ? '+' : ''}${scoreChange})`);
+      
+    } catch (error) {
+      console.warn('⚠️ Error storing bonus score change reason (falling back to logging):', error);
+      
+      // Fallback to logging if database storage fails
+      console.log(`📝 Bonus Score Change Reason (logged):`, {
+        poolAddress,
+        blockNumber,
+        epoch,
+        scoreChange,
+        previousScore,
+        newScore,
+        reason,
+        reasonData: JSON.stringify(reasonData),
+        timestamp: new Date()
+      });
+    }
+  }
+
+  /**
+   * Get epoch data by block number
+   */
+  public async getEpochByBlock(blockNumber: number): Promise<{ id: number } | null> {
+    try {
+      const result = await this.connectionPool.query(sql`
+        SELECT id FROM posdao_epoch 
+        WHERE block_start <= ${blockNumber} 
+        AND (block_end >= ${blockNumber} OR block_end IS NULL)
+        ORDER BY block_start DESC 
+        LIMIT 1
+      `);
+
+      if (result.length > 0) {
+        return { id: result[0].id };
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('Error getting epoch by block:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get bonus score change history for a pool
+   * Query method for new reason tracking data
+   */
+  public async getBonusScoreChangeHistory(
+    poolAddress: string, 
+    fromBlock?: number, 
+    toBlock?: number
+  ): Promise<any[]> {
+    try {
+      let whereConditions = [sql`node_pool_address = ${addressToBuffer(poolAddress)}`];
+      
+      if (fromBlock !== undefined) {
+        whereConditions.push(sql`block_number >= ${fromBlock}`);
+      }
+      
+      if (toBlock !== undefined) {
+        whereConditions.push(sql`block_number <= ${toBlock}`);
+      }
+      
+      const whereClause = whereConditions.length > 0 
+        ? sql` WHERE ${sql.join(whereConditions, sql` AND `)}`
+        : sql``;
+
+      const result = await this.connectionPool.query(sql`
+        SELECT 
+          id,
+          node_pool_address,
+          block_number,
+          epoch,
+          score_change,
+          previous_score,
+          new_score,
+          reason,
+          reason_data,
+          created_at
+        FROM bonus_score_change_reasons
+        ${whereClause}
+        ORDER BY block_number DESC, created_at DESC
+        LIMIT 1000
+      `);
+
+      return result.map(row => ({
+        id: row.id,
+        poolAddress: bufferToAddress(row.node_pool_address),
+        blockNumber: row.block_number,
+        epoch: row.epoch,
+        scoreChange: row.score_change,
+        previousScore: row.previous_score,
+        newScore: row.new_score,
+        reason: row.reason,
+        reasonData: row.reason_data, // JSONB columns are already parsed
+        createdAt: row.created_at
+      }));
+      
+    } catch (error) {
+      console.warn('Error getting bonus score change history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get bonus score change statistics for reporting
+   */
+  public async getBonusScoreChangeStats(epochStart?: number, epochEnd?: number): Promise<{
+    totalChanges: number;
+    reasonCounts: { [reason: string]: number };
+    avgScoreChange: number;
+  }> {
+    try {
+      let whereConditions: any[] = [];
+      
+      if (epochStart !== undefined) {
+        whereConditions.push(sql`epoch >= ${epochStart}`);
+      }
+      
+      if (epochEnd !== undefined) {
+        whereConditions.push(sql`epoch <= ${epochEnd}`);
+      }
+      
+      const whereClause = whereConditions.length > 0 
+        ? sql` WHERE ${sql.join(whereConditions, sql` AND `)}`
+        : sql``;
+
+      const result = await this.connectionPool.query(sql`
+        SELECT 
+          COUNT(*) as total_changes,
+          reason,
+          COUNT(*) as reason_count,
+          AVG(score_change) as avg_score_change
+        FROM bonus_score_change_reasons
+        ${whereClause}
+        GROUP BY reason
+        ORDER BY reason_count DESC
+      `);
+
+      const totalChanges = result.reduce((sum, row) => sum + parseInt(row.reason_count), 0);
+      const reasonCounts: { [reason: string]: number } = {};
+      let totalScoreChange = 0;
+
+      result.forEach(row => {
+        reasonCounts[row.reason] = parseInt(row.reason_count);
+        totalScoreChange += parseFloat(row.avg_score_change) * parseInt(row.reason_count);
+      });
+
+      const avgScoreChange = totalChanges > 0 ? totalScoreChange / totalChanges : 0;
+
+      return {
+        totalChanges,
+        reasonCounts,
+        avgScoreChange
+      };
+      
+    } catch (error) {
+      console.warn('Error getting bonus score change statistics:', error);
+      return {
+        totalChanges: 0,
+        reasonCounts: {},
+        avgScoreChange: 0
+      };
+    }
   }
 }
 
