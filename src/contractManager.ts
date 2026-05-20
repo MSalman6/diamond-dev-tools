@@ -76,8 +76,12 @@ export class DelegateRewardData {
   ) { }
 }
 
-
-
+export interface RestakeRewardEvent {
+  poolStakingAddress: string;
+  stakingEpoch: number;
+  validatorReward: BigNumber;
+  delegatorsReward: BigNumber;
+}
 
 /// a IP Address with Port, but without the public key.
 export class NetworkAddress {
@@ -116,10 +120,9 @@ export class ContractManager {
   private cachedPermission?: TxPermissionHbbft;
   private cachedBonusScoreSystem?: BonusScoreSystem;
   private cachedConnectivityTrackerHbbft?: ConnectivityTrackerHbbft;
-
+  private cachedValidatorMinRewardPercent: Map<number, number> = new Map();
+  
   private apyStakeFraction: BigNumber;
-
-
 
   public constructor(public web3: Web3) {
     this.apyStakeFraction = parseEther(this.web3.utils.toWei('10000', 'ether'));
@@ -839,6 +842,69 @@ export class ContractManager {
     const txs_per_sec = transaction_count / duration;
     const posdaoEpoch = await this.getEpoch(blockHeader.number);
     return { timeStamp, duration, transaction_count, txs_per_sec, posdaoEpoch };
+  }
+
+  public async getEpochPoolNativeReward(
+    epoch: number,
+    miningAddress: string,
+    blockNumber: number
+  ): Promise<BigNumber> {
+    const rewardContract = await this.getRewardHbbft();
+    const result = await rewardContract.methods.epochPoolNativeReward(epoch, miningAddress).call({}, blockNumber);
+    return h2bn(result);
+  }
+
+  public async getValidatorMinRewardPercent(
+    epoch: number,
+    blockNumber: number
+  ): Promise<number> {
+    if (this.cachedValidatorMinRewardPercent.has(epoch)) {
+      return this.cachedValidatorMinRewardPercent.get(epoch)!;
+    }
+    const rewardContract = await this.getRewardHbbft();
+    const result = h2n(await rewardContract.methods.validatorMinRewardPercent(epoch).call({}, blockNumber));
+    this.cachedValidatorMinRewardPercent.set(epoch, result);
+    return result;
+  }
+
+  public async getSnapshotPoolTotalStakeAmount(
+    epoch: number,
+    poolStakingAddress: string
+  ): Promise<BigNumber> {
+    const staking = await this.getStakingHbbft();
+    const result = await staking.methods.snapshotPoolTotalStakeAmount(epoch, poolStakingAddress).call();
+    return h2bn(result);
+  }
+
+  public async getSnapshotPoolValidatorStakeAmount(
+    epoch: number,
+    poolStakingAddress: string
+  ): Promise<BigNumber> {
+    const staking = await this.getStakingHbbft();
+    const result = await staking.methods.snapshotPoolValidatorStakeAmount(epoch, poolStakingAddress).call();
+    return h2bn(result);
+  }
+
+  public async getPoolNodeOperatorShare(
+    poolStakingAddress: string,
+    blockNumber: number
+  ): Promise<number> {
+    const staking = await this.getStakingHbbft();
+    return h2n(await staking.methods.poolNodeOperatorShare(poolStakingAddress).call({}, blockNumber));
+  }
+
+  public async getRestakeRewardEvents(
+    fromBlock: number,
+    toBlock: number
+  ): Promise<RestakeRewardEvent[]> {
+    const staking = await this.getStakingHbbft();
+    const events = await staking.getPastEvents('RestakeReward', { fromBlock, toBlock });
+    return events.map(event => ({
+      poolStakingAddress: event.returnValues.poolStakingAddress,
+      stakingEpoch: Number(event.returnValues.stakingEpoch),
+      validatorReward: h2bn(event.returnValues.validatorReward),
+      delegatorsReward: h2bn(event.returnValues.delegatorsReward),
+    }));
   }
 
   public async getDelegateRewards(
