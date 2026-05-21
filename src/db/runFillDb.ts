@@ -194,37 +194,39 @@ async function run() {
                     if (lastInsertedPosdaoEpoch >= 0) {
                         dbManager.endStakingEpoch(lastInsertedPosdaoEpoch, blockHeader.number - 1);
 
-                        // get the validator infos.
-                        let rewardedValidators = await contractManager.getValidators(blockHeader.number - 1);
+                        const epochSnapshotBlock = blockHeader.number - 1;
+                        const restakeEvents = await contractManager.getRestakeRewardEvents(blockHeader.number, blockHeader.number);
 
                         let delegatedRewards = new Array<DelegateRewardData>();
 
-                        console.log(`Processing delegators rewards on ${lastInsertedPosdaoEpoch} epoch`);
+                        console.log(`Processing delegator rewards for epoch ${lastInsertedPosdaoEpoch} (${restakeEvents.length} pools)`);
 
-                        for (let rewardedValidator of rewardedValidators) {
-                            let pool = knownNodesStakingByMining[rewardedValidator.toLowerCase()];
+                        for (const event of restakeEvents) {
+                            const pool = event.poolStakingAddress;
+                            const miningAddress = await contractManager.getAddressMiningByStaking(pool, epochSnapshotBlock);
 
-                            if (!pool) {
-                                console.log(`Could not find pool for mining address ${rewardedValidator}`);
-                                continue;
-                            }
+                            const { apy, rewards, totalPoolReward, validatorFixed, nodeOperatorReward, delegatorsTotal, totalStake }
+                                = await contractManager.getDelegateRewards(
+                                    pool,
+                                    miningAddress,
+                                    lastInsertedPosdaoEpoch,
+                                    epochSnapshotBlock,
+                                    blockHeader.number
+                                );
 
-                            const { apy, rewards } = await contractManager.getDelegateRewards(
+                            delegatedRewards.push(...rewards);
+
+                            await dbManager.updateValidatorReward(
                                 pool,
                                 lastInsertedPosdaoEpoch,
-                                blockHeader.number
+                                event.validatorReward,
+                                apy,
+                                totalPoolReward,
+                                validatorFixed,
+                                nodeOperatorReward,
+                                delegatorsTotal,
+                                totalStake
                             );
-
-                            delegatedRewards.push.apply(rewards);
-
-                            let validatorReward = parseEther(await contractManager.getReward(
-                                pool,
-                                pool,
-                                lastInsertedPosdaoEpoch,
-                                blockHeader.number
-                            ));
-
-                            await dbManager.updateValidatorReward(pool, lastInsertedPosdaoEpoch, validatorReward, apy);
                         }
 
                         await dbManager.insertDelegateRewardsBulk(delegatedRewards);

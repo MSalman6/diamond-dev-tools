@@ -497,6 +497,41 @@
         "hasDefault": false,
         "typeId": 1700,
         "typeName": "NUMERIC"
+      },
+      {
+        "name": "total_pool_reward",
+        "isNullable": false,
+        "hasDefault": true,
+        "typeId": 1700,
+        "typeName": "NUMERIC"
+      },
+      {
+        "name": "validator_fixed_reward",
+        "isNullable": false,
+        "hasDefault": true,
+        "typeId": 1700,
+        "typeName": "NUMERIC"
+      },
+      {
+        "name": "node_operator_reward",
+        "isNullable": false,
+        "hasDefault": true,
+        "typeId": 1700,
+        "typeName": "NUMERIC"
+      },
+      {
+        "name": "delegators_total_reward",
+        "isNullable": false,
+        "hasDefault": true,
+        "typeId": 1700,
+        "typeName": "NUMERIC"
+      },
+      {
+        "name": "total_staked_snapshot",
+        "isNullable": false,
+        "hasDefault": true,
+        "typeId": 1700,
+        "typeName": "NUMERIC"
       }
     ]
   },

@@ -851,7 +851,7 @@ export class ContractManager {
   ): Promise<BigNumber> {
     const rewardContract = await this.getRewardHbbft();
     const result = await rewardContract.methods.epochPoolNativeReward(epoch, miningAddress).call({}, blockNumber);
-    return h2bn(result);
+    return parseEther(result);
   }
 
   public async getValidatorMinRewardPercent(
@@ -873,7 +873,7 @@ export class ContractManager {
   ): Promise<BigNumber> {
     const staking = await this.getStakingHbbft();
     const result = await staking.methods.snapshotPoolTotalStakeAmount(epoch, poolStakingAddress).call();
-    return h2bn(result);
+    return parseEther(result);
   }
 
   public async getSnapshotPoolValidatorStakeAmount(
@@ -882,7 +882,7 @@ export class ContractManager {
   ): Promise<BigNumber> {
     const staking = await this.getStakingHbbft();
     const result = await staking.methods.snapshotPoolValidatorStakeAmount(epoch, poolStakingAddress).call();
-    return h2bn(result);
+    return parseEther(result);
   }
 
   public async getPoolNodeOperatorShare(
@@ -902,48 +902,62 @@ export class ContractManager {
     return events.map(event => ({
       poolStakingAddress: event.returnValues.poolStakingAddress,
       stakingEpoch: Number(event.returnValues.stakingEpoch),
-      validatorReward: h2bn(event.returnValues.validatorReward),
-      delegatorsReward: h2bn(event.returnValues.delegatorsReward),
+      validatorReward: parseEther(event.returnValues.validatorReward),
+      delegatorsReward: parseEther(event.returnValues.delegatorsReward),
     }));
   }
 
   public async getDelegateRewards(
     pool: string,
+    miningAddress: string,
     epoch: number,
+    epochSnapshotBlock: number,
     blockNumber: number
-  ): Promise<{ apy: BigNumber; rewards: DelegateRewardData[] }> {
-
-    // console.log("");
+  ): Promise<{
+    apy: BigNumber;
+    rewards: DelegateRewardData[];
+    totalPoolReward: BigNumber;
+    validatorFixed: BigNumber;
+    nodeOperatorReward: BigNumber;
+    delegatorsTotal: BigNumber;
+    totalStake: BigNumber;
+  }> {
     const staking = await this.getStakingHbbft();
 
-    let result = new Array<DelegateRewardData>();
+    const poolReward = await this.getEpochPoolNativeReward(epoch, miningAddress, blockNumber);
+    const minRewardPct = await this.getValidatorMinRewardPercent(epoch, blockNumber);
+    const validatorFixed = poolReward.times(minRewardPct).div(100);
+    const delegatorsTotal = poolReward.minus(validatorFixed);
+    const operatorSharePct = await this.getPoolNodeOperatorShare(pool, blockNumber);
+    const nodeOperatorReward = poolReward.times(operatorSharePct).div(10000);
+    const totalStake = await this.getSnapshotPoolTotalStakeAmount(epoch, pool);
 
-    const delegators = await this.getAllPoolDelegators(pool, blockNumber - 1);
+    const delegators = await this.getAllPoolDelegators(pool, epochSnapshotBlock);
+    const result = new Array<DelegateRewardData>();
 
     for (const delegator of delegators) {
-
-      const reward = await this.getReward(pool, delegator, epoch, blockNumber);
+      const delegatorStake = parseEther(
+        await staking.methods.stakeAmount(pool, delegator).call({}, epochSnapshotBlock)
+      );
+      const delegatorReward = totalStake.isZero()
+        ? BigNumber(0)
+        : delegatorsTotal.times(delegatorStake).div(totalStake);
 
       result.push({
         poolAddress: pool,
         delegatorAddress: delegator,
         epoch: epoch,
         isClaimed: true, // since auto restake, rewards are considered always as claimed: https://github.com/DMDcoin/diamond-contracts-core/issues/43
-        amount: parseEther(reward)
+        amount: delegatorReward
       });
     }
 
-    const totalRewards = result.reduce(
-      (accumulator, currentValue) => accumulator.plus(currentValue.amount!),
-      BigNumber(0)
-    );
-
-    const totalStake = await staking.methods.stakeAmountTotal(pool).call({}, blockNumber - 1);
-
     // reward amount per 10_000 staked DMD
-    const apy = (totalRewards.times(this.apyStakeFraction)).div(parseEther(totalStake));
+    const apy = totalStake.isZero()
+      ? BigNumber(0)
+      : delegatorsTotal.times(this.apyStakeFraction).div(totalStake);
 
-    return { apy: apy, rewards: result };
+    return { apy, rewards: result, totalPoolReward: poolReward, validatorFixed, nodeOperatorReward, delegatorsTotal, totalStake };
   }
 
 
