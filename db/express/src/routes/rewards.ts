@@ -1,4 +1,4 @@
-import { param, query } from 'express-validator';
+import { param, query, body } from 'express-validator';
 import express from 'express';
 import Params from '../middleware/params';
 import { authenticate } from '../middleware/authenticate';
@@ -95,6 +95,42 @@ router.get(
         Params.validate,
     ],
     rewards.getValidatorRewardStats
+);
+
+//
+// POST /nodes/reward-stats
+//
+// 30-day validator metrics.
+// Body: { "addresses": string[] }
+//
+router.post(
+    '/nodes/reward-stats',
+    [
+        authenticate,
+        rateLimiter,
+        body('addresses').isArray({ min: 1, max: 100 }),
+        body('addresses.*').isHexadecimal().isLength({ min: 42, max: 42 }),
+        Params.validate,
+    ],
+    rewards.batchValidatorRewardStats
+);
+
+//
+// POST /stakers/reward-stats
+//
+// 30-day delegator totals.
+// Body: { "addresses": string[] }
+//
+router.post(
+    '/stakers/reward-stats',
+    [
+        authenticate,
+        rateLimiter,
+        body('addresses').isArray({ min: 1, max: 100 }),
+        body('addresses.*').isHexadecimal().isLength({ min: 42, max: 42 }),
+        Params.validate,
+    ],
+    rewards.batchDelegatorRewardStats
 );
 
 export default router;

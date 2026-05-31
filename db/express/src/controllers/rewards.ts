@@ -252,9 +252,123 @@ const getDelegatorRewardStats = async (req: any, res: any) => {
     }
 };
 
+// POST /nodes/reward-stats
+//
+// 30-day validator metrics
+const batchValidatorRewardStats = async (req: any, res: any) => {
+    const addresses: string[] = (req.body.addresses as string[]).map(a => a.toLowerCase());
+    const windowStart = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
+
+    try {
+        const activeRows: any[] = await posdao_epoch_node.sequelize!.query(
+            `SELECT
+                lower('0x' || encode(pen.id_node, 'hex'))          AS address,
+                SUM(pen.validator_fixed_reward - pen.node_operator_reward) AS vos30,
+                SUM(pen.delegators_total_reward)                           AS delegators_total_30d,
+                AVG(pen.total_staked_snapshot)                             AS avg_total_stake_30d,
+                COUNT(*)                                                   AS active_epoch_count
+             FROM posdao_epoch_node pen
+             JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
+             JOIN headers h       ON h.block_number = pe.block_end
+             WHERE lower('0x' || encode(pen.id_node, 'hex')) = ANY($1::text[])
+               AND h.block_time >= to_timestamp($2)
+             GROUP BY pen.id_node`,
+            { bind: [addresses, windowStart], type: QueryTypes.SELECT }
+        );
+
+        const totalRows: any[] = await posdao_epoch_node.sequelize!.query(
+            `SELECT COUNT(*) AS total_epochs
+             FROM posdao_epoch pe
+             JOIN headers h ON h.block_number = pe.block_end
+             WHERE h.block_time >= to_timestamp($1)`,
+            { bind: [windowStart], type: QueryTypes.SELECT }
+        );
+
+        const totalEpochs = parseInt(totalRows[0].total_epochs) || 0;
+
+        const result: Record<string, any> = {};
+        for (const addr of addresses) {
+            result[addr] = {
+                vos30: 0,
+                rpt30: 0,
+                aep30: 0,
+                estimated_apy: 0,
+                active_epoch_count: 0,
+                total_epochs_in_window: totalEpochs,
+            };
+        }
+
+        for (const row of activeRows) {
+            const delegatorsTotal30d = parseFloat(row.delegators_total_30d) || 0;
+            const avgTotalStake30d = parseFloat(row.avg_total_stake_30d) || 0;
+            const vos30 = parseFloat(row.vos30) || 0;
+            const activeEpochCount = parseInt(row.active_epoch_count) || 0;
+            const rpt30 = avgTotalStake30d > 0 ? (delegatorsTotal30d / avgTotalStake30d) * 1000 : 0;
+            const aep30 = totalEpochs > 0 ? activeEpochCount / totalEpochs : 0;
+
+            result[row.address] = {
+                vos30,
+                rpt30,
+                aep30,
+                estimated_apy: (rpt30 / 1000) * 12 * 100,
+                active_epoch_count: activeEpochCount,
+                total_epochs_in_window: totalEpochs,
+            };
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error('Error fetching batch validator reward stats:', error);
+        res.status(500).json({ error: 'Failed to fetch batch validator reward stats' });
+    }
+};
+
+// POST /stakers/reward-stats
+//
+// 30-day delegator totals
+const batchDelegatorRewardStats = async (req: any, res: any) => {
+    const addresses: string[] = (req.body.addresses as string[]).map(a => a.toLowerCase());
+    const windowStart = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
+
+    try {
+        const rows: any[] = await posdao_epoch_node.sequelize!.query(
+            `SELECT
+                lower('0x' || encode(dr.id_delegator, 'hex')) AS address,
+                SUM(dr.reward_amount)                          AS total_rewards_30d,
+                COUNT(DISTINCT dr.id_node)                     AS active_pool_count
+             FROM delegate_reward dr
+             JOIN posdao_epoch pe ON pe.id = dr.id_posdao_epoch
+             JOIN headers h       ON h.block_number = pe.block_end
+             WHERE lower('0x' || encode(dr.id_delegator, 'hex')) = ANY($1::text[])
+               AND h.block_time >= to_timestamp($2)
+             GROUP BY dr.id_delegator`,
+            { bind: [addresses, windowStart], type: QueryTypes.SELECT }
+        );
+
+        const result: Record<string, any> = {};
+        for (const addr of addresses) {
+            result[addr] = { total_rewards_30d: 0, active_pool_count: 0 };
+        }
+
+        for (const row of rows) {
+            result[row.address] = {
+                total_rewards_30d: parseFloat(row.total_rewards_30d) || 0,
+                active_pool_count: parseInt(row.active_pool_count) || 0,
+            };
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error('Error fetching batch delegator reward stats:', error);
+        res.status(500).json({ error: 'Failed to fetch batch delegator reward stats' });
+    }
+};
+
 export default {
     listDelegatorRewards,
     listValidatorEpochRewards,
     getValidatorRewardStats,
     getDelegatorRewardStats,
+    batchValidatorRewardStats,
+    batchDelegatorRewardStats,
 };
