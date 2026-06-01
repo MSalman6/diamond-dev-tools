@@ -10,7 +10,7 @@ services:
         depends_on:
             - "db"
         ports:
-            - "4000:4000"
+            - "127.0.0.1:4000:4000"
         tty: true
         environment:
             ETHEREUM_JSONRPC_HTTP_URL: http://62.171.133.46:54100

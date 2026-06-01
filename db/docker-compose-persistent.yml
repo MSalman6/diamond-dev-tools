@@ -89,7 +89,7 @@ services:
     env_file:
       - ../.env
     ports:
-      - "127.0.0.1:${PORT:-9990}:${PORT:-9990}"
+      - "${HOST:-127.0.0.1}:${PORT:-9990}:${PORT:-9990}"
     environment:
       - NODE_ENV=development
       - POSTGRES_PASSWORD=${DMD_DB_POSTGRES_PASS}

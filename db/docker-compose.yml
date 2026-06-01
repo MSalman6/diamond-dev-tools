@@ -34,7 +34,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
@@ -47,7 +47,7 @@ services:
   pgadmin:
     build: ./pgadmin 
     ports:
-      - '3002:80'
+      - '127.0.0.1:3002:80'
     environment:
       - PGADMIN_DEFAULT_EMAIL=nobody@bit.diamonds
       - PGADMIN_DEFAULT_PASSWORD=${DMD_DB_POSTGRES_PASS}
@@ -69,7 +69,7 @@ services:
     env_file:
       - ../.env
     ports:
-      - "${PORT:-9990}:${PORT:-9990}"
+      - "${HOST:-127.0.0.1}:${PORT:-9990}:${PORT:-9990}"
     environment:
       - NODE_ENV=development
       - POSTGRES_PASSWORD=${DMD_DB_POSTGRES_PASS}
