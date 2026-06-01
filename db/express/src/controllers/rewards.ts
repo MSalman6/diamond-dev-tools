@@ -94,6 +94,8 @@ const listValidatorEpochRewards = async (req: any, res: any) => {
     const {
         from_epoch,
         to_epoch,
+        from_time,
+        to_time,
         limit = '200',
         offset = '0',
     } = req.query;
@@ -116,13 +118,22 @@ const listValidatorEpochRewards = async (req: any, res: any) => {
             conditions.push(`pe.id <= $${paramIdx++}`);
             bind.push(parseInt(to_epoch as string));
         }
+        if (from_time) {
+            conditions.push(`h.block_time >= $${paramIdx++}`);
+            bind.push(parseInt(from_time as string));
+        }
+        if (to_time) {
+            conditions.push(`h.block_time <= $${paramIdx++}`);
+            bind.push(parseInt(to_time as string));
+        }
 
         const where = conditions.join(' AND ');
 
         const countResult: any[] = await posdao_epoch_node.sequelize!.query(
             `SELECT COUNT(*) as total
              FROM posdao_epoch_node pen
-             JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
+             JOIN posdao_epoch pe  ON pe.id = pen.id_posdao_epoch
+             LEFT JOIN headers h   ON h.block_number = pe.block_end
              WHERE ${where}`,
             { bind, type: QueryTypes.SELECT }
         );
@@ -176,6 +187,7 @@ const getValidatorRewardStats = async (req: any, res: any) => {
         const activeRows: any[] = await posdao_epoch_node.sequelize!.query(
             `SELECT
                 SUM(pen.validator_fixed_reward - pen.node_operator_reward) AS vos30,
+                SUM(pen.owner_reward)                                      AS owner_reward_30d,
                 SUM(pen.delegators_total_reward)                           AS delegators_total_30d,
                 AVG(pen.total_staked_snapshot)                             AS avg_total_stake_30d,
                 COUNT(*)                                                   AS active_epoch_count
@@ -195,6 +207,22 @@ const getValidatorRewardStats = async (req: any, res: any) => {
             { bind: [windowStart], type: QueryTypes.SELECT }
         );
 
+        // Previous 30-day window (t-60d to t-30d) used for rpt30 trend calculation.
+        const prevWindowStart = windowStart - 30 * 24 * 60 * 60;
+        const prevRows: any[] = await posdao_epoch_node.sequelize!.query(
+            `SELECT
+                SUM(pen.delegators_total_reward) AS delegators_total_prev,
+                AVG(pen.total_staked_snapshot)   AS avg_total_stake_prev,
+                COUNT(*)                         AS prev_count
+             FROM posdao_epoch_node pen
+             JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
+             JOIN headers h       ON h.block_number = pe.block_end
+             WHERE '0x' || encode(pen.id_node, 'hex') = lower($1)
+               AND h.block_time >= $2
+               AND h.block_time < $3`,
+            { bind: [address, prevWindowStart, windowStart], type: QueryTypes.SELECT }
+        );
+
         const r = activeRows[0];
         const totalEpochs = parseInt(totalRows[0].total_epochs) || 0;
         const activeEpochCount = parseInt(r.active_epoch_count) || 0;
@@ -202,15 +230,32 @@ const getValidatorRewardStats = async (req: any, res: any) => {
         const avgTotalStake30d = parseFloat(r.avg_total_stake_30d) || 0;
         const vos30 = parseFloat(r.vos30) || 0;
 
+        // vos30_net
+        const vos30Net = parseFloat(r.owner_reward_30d) || 0;
+
         const rpt30 = avgTotalStake30d > 0 ? (delegatorsTotal30d / avgTotalStake30d) * 1000 : 0;
         const aep30 = totalEpochs > 0 ? activeEpochCount / totalEpochs : 0;
         const estimatedAPY = (rpt30 / 1000) * 12 * 100;
 
+        // uptime = aep30 × 100.
+        const uptime = aep30 * 100;
+
+        // rpt30_prev30: null when no epochs found in the previous window
+        const prevCount = parseInt(prevRows[0].prev_count) || 0;
+        const prevDel = parseFloat(prevRows[0].delegators_total_prev) || 0;
+        const prevStake = parseFloat(prevRows[0].avg_total_stake_prev) || 0;
+        const rpt30Prev30 = prevCount > 0 ? (prevStake > 0 ? (prevDel / prevStake) * 1000 : 0) : null;
+        const rpt30Delta = rpt30Prev30 !== null ? rpt30 - rpt30Prev30 : null;
+
         res.json({
             vos30,
+            vos30_net: vos30Net,
             rpt30,
+            rpt30_prev30: rpt30Prev30,
+            rpt30_delta: rpt30Delta,
             aep30,
             estimated_apy: estimatedAPY,
+            uptime,
             active_epoch_count: activeEpochCount,
             total_epochs_in_window: totalEpochs,
         });
@@ -262,11 +307,12 @@ const batchValidatorRewardStats = async (req: any, res: any) => {
     try {
         const activeRows: any[] = await posdao_epoch_node.sequelize!.query(
             `SELECT
-                lower('0x' || encode(pen.id_node, 'hex'))          AS address,
-                SUM(pen.validator_fixed_reward - pen.node_operator_reward) AS vos30,
-                SUM(pen.delegators_total_reward)                           AS delegators_total_30d,
-                AVG(pen.total_staked_snapshot)                             AS avg_total_stake_30d,
-                COUNT(*)                                                   AS active_epoch_count
+                lower('0x' || encode(pen.id_node, 'hex'))                  AS address,
+                SUM(pen.validator_fixed_reward - pen.node_operator_reward)  AS vos30,
+                SUM(pen.owner_reward)                                       AS owner_reward_30d,
+                SUM(pen.delegators_total_reward)                            AS delegators_total_30d,
+                AVG(pen.total_staked_snapshot)                              AS avg_total_stake_30d,
+                COUNT(*)                                                    AS active_epoch_count
              FROM posdao_epoch_node pen
              JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
              JOIN headers h       ON h.block_number = pe.block_end
@@ -284,15 +330,43 @@ const batchValidatorRewardStats = async (req: any, res: any) => {
             { bind: [windowStart], type: QueryTypes.SELECT }
         );
 
+        // Previous 30-day window for rpt30 trend
+        const prevWindowStart = windowStart - 30 * 24 * 60 * 60;
+        const prevRows: any[] = await posdao_epoch_node.sequelize!.query(
+            `SELECT
+                lower('0x' || encode(pen.id_node, 'hex')) AS address,
+                SUM(pen.delegators_total_reward)           AS delegators_total_prev,
+                AVG(pen.total_staked_snapshot)             AS avg_total_stake_prev,
+                COUNT(*)                                   AS prev_count
+             FROM posdao_epoch_node pen
+             JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
+             JOIN headers h       ON h.block_number = pe.block_end
+             WHERE lower('0x' || encode(pen.id_node, 'hex')) = ANY($1::text[])
+               AND h.block_time >= to_timestamp($2)
+               AND h.block_time < to_timestamp($3)
+             GROUP BY pen.id_node`,
+            { bind: [addresses, prevWindowStart, windowStart], type: QueryTypes.SELECT }
+        );
+
         const totalEpochs = parseInt(totalRows[0].total_epochs) || 0;
+
+        // Build a map of previous-window data keyed by address for O(1) lookup.
+        const prevByAddress: Record<string, any> = {};
+        for (const row of prevRows) {
+            prevByAddress[row.address] = row;
+        }
 
         const result: Record<string, any> = {};
         for (const addr of addresses) {
             result[addr] = {
                 vos30: 0,
+                vos30_net: 0,
                 rpt30: 0,
+                rpt30_prev30: null,
+                rpt30_delta: null,
                 aep30: 0,
                 estimated_apy: 0,
+                uptime: 0,
                 active_epoch_count: 0,
                 total_epochs_in_window: totalEpochs,
             };
@@ -302,15 +376,31 @@ const batchValidatorRewardStats = async (req: any, res: any) => {
             const delegatorsTotal30d = parseFloat(row.delegators_total_30d) || 0;
             const avgTotalStake30d = parseFloat(row.avg_total_stake_30d) || 0;
             const vos30 = parseFloat(row.vos30) || 0;
+            const vos30Net = parseFloat(row.owner_reward_30d) || 0;
             const activeEpochCount = parseInt(row.active_epoch_count) || 0;
             const rpt30 = avgTotalStake30d > 0 ? (delegatorsTotal30d / avgTotalStake30d) * 1000 : 0;
             const aep30 = totalEpochs > 0 ? activeEpochCount / totalEpochs : 0;
 
+            const prev = prevByAddress[row.address];
+            const prevCount = prev ? parseInt(prev.prev_count) || 0 : 0;
+            const rpt30Prev30 = prevCount > 0
+                ? (() => {
+                    const prevStake = parseFloat(prev.avg_total_stake_prev) || 0;
+                    const prevDel = parseFloat(prev.delegators_total_prev) || 0;
+                    return prevStake > 0 ? (prevDel / prevStake) * 1000 : 0;
+                })()
+                : null;
+            const rpt30Delta = rpt30Prev30 !== null ? rpt30 - rpt30Prev30 : null;
+
             result[row.address] = {
                 vos30,
+                vos30_net: vos30Net,
                 rpt30,
+                rpt30_prev30: rpt30Prev30,
+                rpt30_delta: rpt30Delta,
                 aep30,
                 estimated_apy: (rpt30 / 1000) * 12 * 100,
+                uptime: aep30 * 100,
                 active_epoch_count: activeEpochCount,
                 total_epochs_in_window: totalEpochs,
             };
