@@ -195,7 +195,7 @@ async function run() {
                         dbManager.endStakingEpoch(lastInsertedPosdaoEpoch, blockHeader.number - 1);
 
                         const epochSnapshotBlock = blockHeader.number - 1;
-                        const restakeEvents = await contractManager.getRestakeRewardEvents(blockHeader.number, blockHeader.number);
+                        const restakeEvents = await contractManager.getRestakeRewardEvents(epochSnapshotBlock, blockHeader.number);
 
                         let delegatedRewards = new Array<DelegateRewardData>();
 
