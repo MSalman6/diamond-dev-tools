@@ -912,7 +912,8 @@ export class ContractManager {
     miningAddress: string,
     epoch: number,
     epochSnapshotBlock: number,
-    blockNumber: number
+    eventValidatorReward: BigNumber,
+    eventDelegatorsReward: BigNumber
   ): Promise<{
     apy: BigNumber;
     rewards: DelegateRewardData[];
@@ -924,11 +925,10 @@ export class ContractManager {
   }> {
     const staking = await this.getStakingHbbft();
 
-    const poolReward = await this.getEpochPoolNativeReward(epoch, miningAddress, blockNumber);
-    const minRewardPct = await this.getValidatorMinRewardPercent(epoch, blockNumber);
-    const validatorFixed = poolReward.times(minRewardPct).div(100);
-    const delegatorsTotal = poolReward.minus(validatorFixed);
-    const operatorSharePct = await this.getPoolNodeOperatorShare(pool, blockNumber);
+    const poolReward = eventValidatorReward.plus(eventDelegatorsReward);
+    const validatorFixed = eventValidatorReward;
+    const delegatorsTotal = eventDelegatorsReward;
+    const operatorSharePct = await this.getPoolNodeOperatorShare(pool, epochSnapshotBlock);
     const nodeOperatorReward = poolReward.times(operatorSharePct).div(10000);
     const totalStake = await this.getSnapshotPoolTotalStakeAmount(epoch, pool);
 

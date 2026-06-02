@@ -152,7 +152,8 @@ const listValidatorEpochRewards = async (req: any, res: any) => {
                 pen.is_claimed,
                 pe.block_start,
                 pe.block_end,
-                h.block_time                 AS epoch_end_time
+                h.block_time                 AS epoch_end_time,
+                (pe.block_end IS NOT NULL)   AS is_finalized
              FROM posdao_epoch_node pen
              JOIN posdao_epoch pe   ON pe.id = pen.id_posdao_epoch
              LEFT JOIN headers h    ON h.block_number = pe.block_end

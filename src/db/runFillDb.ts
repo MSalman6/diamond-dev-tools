@@ -211,7 +211,8 @@ async function run() {
                                     miningAddress,
                                     lastInsertedPosdaoEpoch,
                                     epochSnapshotBlock,
-                                    blockHeader.number
+                                    event.validatorReward,
+                                    event.delegatorsReward
                                 );
 
                             delegatedRewards.push(...rewards);
