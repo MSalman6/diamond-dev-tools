@@ -192,7 +192,7 @@ async function run() {
                     // we insert the posdao information for the epoch.
                     //let posdaoEpoch = await contractManager.getPosdaoEpoch(posdaoEpoch);
                     if (lastInsertedPosdaoEpoch >= 0) {
-                        dbManager.endStakingEpoch(lastInsertedPosdaoEpoch, blockHeader.number - 1);
+                        await dbManager.endStakingEpoch(lastInsertedPosdaoEpoch, blockHeader.number - 1);
 
                         const epochSnapshotBlock = blockHeader.number - 1;
                         const restakeEvents = await contractManager.getRestakeRewardEvents(epochSnapshotBlock, blockHeader.number);

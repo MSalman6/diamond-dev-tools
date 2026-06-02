@@ -186,16 +186,16 @@ const getValidatorRewardStats = async (req: any, res: any) => {
     try {
         const activeRows: any[] = await posdao_epoch_node.sequelize!.query(
             `SELECT
-                SUM(pen.validator_fixed_reward - pen.node_operator_reward) AS vos30,
-                SUM(pen.owner_reward)                                      AS owner_reward_30d,
-                SUM(pen.delegators_total_reward)                           AS delegators_total_30d,
-                AVG(pen.total_staked_snapshot)                             AS avg_total_stake_30d,
-                COUNT(*)                                                   AS active_epoch_count
+                SUM(COALESCE(pen.owner_reward, 0)) AS vos30,
+                SUM(COALESCE(pen.owner_reward, 0) - pen.node_operator_reward) AS vos30_net,
+                SUM(pen.delegators_total_reward) AS delegators_total_30d,
+                AVG(pen.total_staked_snapshot) AS avg_total_stake_30d,
+                COUNT(*) AS active_epoch_count
              FROM posdao_epoch_node pen
              JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
              JOIN headers h       ON h.block_number = pe.block_end
              WHERE '0x' || encode(pen.id_node, 'hex') = lower($1)
-               AND h.block_time >= $2`,
+               AND h.block_time >= to_timestamp($2)`,
             { bind: [address, windowStart], type: QueryTypes.SELECT }
         );
 
@@ -203,7 +203,7 @@ const getValidatorRewardStats = async (req: any, res: any) => {
             `SELECT COUNT(*) AS total_epochs
              FROM posdao_epoch pe
              JOIN headers h ON h.block_number = pe.block_end
-             WHERE h.block_time >= $1`,
+             WHERE h.block_time >= to_timestamp($1)`,
             { bind: [windowStart], type: QueryTypes.SELECT }
         );
 
@@ -218,8 +218,8 @@ const getValidatorRewardStats = async (req: any, res: any) => {
              JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
              JOIN headers h       ON h.block_number = pe.block_end
              WHERE '0x' || encode(pen.id_node, 'hex') = lower($1)
-               AND h.block_time >= $2
-               AND h.block_time < $3`,
+               AND h.block_time >= to_timestamp($2)
+               AND h.block_time < to_timestamp($3)`,
             { bind: [address, prevWindowStart, windowStart], type: QueryTypes.SELECT }
         );
 
@@ -229,9 +229,7 @@ const getValidatorRewardStats = async (req: any, res: any) => {
         const delegatorsTotal30d = parseFloat(r.delegators_total_30d) || 0;
         const avgTotalStake30d = parseFloat(r.avg_total_stake_30d) || 0;
         const vos30 = parseFloat(r.vos30) || 0;
-
-        // vos30_net
-        const vos30Net = parseFloat(r.owner_reward_30d) || 0;
+        const vos30Net = parseFloat(r.vos30_net) || 0;
 
         const rpt30 = avgTotalStake30d > 0 ? (delegatorsTotal30d / avgTotalStake30d) * 1000 : 0;
         const aep30 = totalEpochs > 0 ? activeEpochCount / totalEpochs : 0;
@@ -307,12 +305,12 @@ const batchValidatorRewardStats = async (req: any, res: any) => {
     try {
         const activeRows: any[] = await posdao_epoch_node.sequelize!.query(
             `SELECT
-                lower('0x' || encode(pen.id_node, 'hex'))                  AS address,
-                SUM(pen.validator_fixed_reward - pen.node_operator_reward)  AS vos30,
-                SUM(pen.owner_reward)                                       AS owner_reward_30d,
-                SUM(pen.delegators_total_reward)                            AS delegators_total_30d,
-                AVG(pen.total_staked_snapshot)                              AS avg_total_stake_30d,
-                COUNT(*)                                                    AS active_epoch_count
+                lower('0x' || encode(pen.id_node, 'hex')) AS address,
+                SUM(COALESCE(pen.owner_reward, 0)) AS vos30,
+                SUM(COALESCE(pen.owner_reward, 0) - pen.node_operator_reward) AS vos30_net,
+                SUM(pen.delegators_total_reward) AS delegators_total_30d,
+                AVG(pen.total_staked_snapshot) AS avg_total_stake_30d,
+                COUNT(*) AS active_epoch_count
              FROM posdao_epoch_node pen
              JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
              JOIN headers h       ON h.block_number = pe.block_end
@@ -376,7 +374,7 @@ const batchValidatorRewardStats = async (req: any, res: any) => {
             const delegatorsTotal30d = parseFloat(row.delegators_total_30d) || 0;
             const avgTotalStake30d = parseFloat(row.avg_total_stake_30d) || 0;
             const vos30 = parseFloat(row.vos30) || 0;
-            const vos30Net = parseFloat(row.owner_reward_30d) || 0;
+            const vos30Net = parseFloat(row.vos30_net) || 0;
             const activeEpochCount = parseInt(row.active_epoch_count) || 0;
             const rpt30 = avgTotalStake30d > 0 ? (delegatorsTotal30d / avgTotalStake30d) * 1000 : 0;
             const aep30 = totalEpochs > 0 ? activeEpochCount / totalEpochs : 0;
