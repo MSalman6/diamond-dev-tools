@@ -195,24 +195,42 @@ async function run() {
                         await dbManager.endStakingEpoch(lastInsertedPosdaoEpoch, blockHeader.number - 1);
 
                         const epochSnapshotBlock = blockHeader.number - 1;
-                        const restakeEvents = await contractManager.getRestakeRewardEvents(epochSnapshotBlock, blockHeader.number);
 
                         let delegatedRewards = new Array<DelegateRewardData>();
 
-                        console.log(`Processing delegator rewards for epoch ${lastInsertedPosdaoEpoch} (${restakeEvents.length} pools)`);
+                        // RestakeReward is never emitted
+                        const epochPools = await contractManager.getAllPools(epochSnapshotBlock);
+                        const validatorMinPct = await contractManager.getValidatorMinRewardPercent(
+                            lastInsertedPosdaoEpoch,
+                            epochSnapshotBlock
+                        );
 
-                        for (const event of restakeEvents) {
-                            const pool = event.poolStakingAddress;
+                        console.log(`Processing delegator rewards for epoch ${lastInsertedPosdaoEpoch} via epochPoolNativeReward (${epochPools.length} pools, validatorMinPct=${validatorMinPct}%)`);
+
+                        for (const pool of epochPools) {
                             const miningAddress = await contractManager.getAddressMiningByStaking(pool, epochSnapshotBlock);
 
-                            const { apy, rewards, totalPoolReward, validatorFixed, nodeOperatorReward, delegatorsTotal, totalStake }
+                            const totalPoolReward = await contractManager.getEpochPoolNativeReward(
+                                lastInsertedPosdaoEpoch,
+                                miningAddress,
+                                epochSnapshotBlock
+                            );
+
+                            if (totalPoolReward.isZero()) {
+                                continue;
+                            }
+
+                            const validatorReward = totalPoolReward.times(validatorMinPct).div(100);
+                            const delegatorsReward = totalPoolReward.minus(validatorReward);
+
+                            const { apy, rewards, totalPoolReward: tpr, validatorFixed, nodeOperatorReward, delegatorsTotal, totalStake }
                                 = await contractManager.getDelegateRewards(
                                     pool,
                                     miningAddress,
                                     lastInsertedPosdaoEpoch,
                                     epochSnapshotBlock,
-                                    event.validatorReward,
-                                    event.delegatorsReward
+                                    validatorReward,
+                                    delegatorsReward
                                 );
 
                             delegatedRewards.push(...rewards);
@@ -220,9 +238,9 @@ async function run() {
                             await dbManager.updateValidatorReward(
                                 pool,
                                 lastInsertedPosdaoEpoch,
-                                event.validatorReward,
+                                validatorReward,
                                 apy,
-                                totalPoolReward,
+                                tpr,
                                 validatorFixed,
                                 nodeOperatorReward,
                                 delegatorsTotal,

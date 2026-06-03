@@ -281,7 +281,7 @@ const getDelegatorRewardStats = async (req: any, res: any) => {
              JOIN posdao_epoch pe ON pe.id = dr.id_posdao_epoch
              JOIN headers h       ON h.block_number = pe.block_end
              WHERE '0x' || encode(dr.id_delegator, 'hex') = lower($1)
-               AND h.block_time >= $2`,
+               AND h.block_time >= to_timestamp($2)`,
             { bind: [address, windowStart], type: QueryTypes.SELECT }
         );
 
