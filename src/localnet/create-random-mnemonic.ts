@@ -20,7 +20,8 @@ async function run() {
   const mnemonic = bip39.generateMnemonic(256);
   let mainAddress = generateAddressesFromSeed(mnemonic, 1)[0].address;
 
-  fs.writeFileSync(".mnemonic", mnemonic);
+  fs.writeFileSync(".mnemonic", mnemonic, { mode: 0o600 });
+  fs.chmodSync(".mnemonic", 0o600);
   fs.writeFileSync(".mainaddress", mainAddress);
 
 }

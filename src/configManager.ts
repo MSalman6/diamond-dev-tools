@@ -303,6 +303,15 @@ export class ConfigManager {
                 return result;
             }
 
+            // Tighten to 0600 and warn if it was looser.
+            try {
+                const mode = fs.statSync(mnemonicFilename).mode & 0o777;
+                if (mode & 0o077) {
+                    console.warn(`WARNING: ${mnemonicFilename} had permissions ${mode.toString(8)} (group/other access). Restricting to 600.`);
+                    fs.chmodSync(mnemonicFilename, 0o600);
+                }
+            } catch (e) {}
+
             const fileContent = fs.readFileSync(mnemonicFilename)
             result.mnemonic = fileContent.toString('utf8');
         }
