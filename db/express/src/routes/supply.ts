@@ -1,5 +1,6 @@
 import express from 'express';
 import supply from '../controllers/supply';
+import { publicRateLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -7,6 +8,7 @@ const router = express.Router();
  * Supply endpoints for CoinMarketCap compatibility
  * All endpoints return plain text (single numerical value)
  */
+router.use(publicRateLimiter);
 
 router.get('/supply/maxcoins', supply.getMaxCoins);
 router.get('/supply/circulating', supply.getCirculating);

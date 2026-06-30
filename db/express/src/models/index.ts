@@ -5,7 +5,8 @@ export type DB = {
     sequelize: Sequelize,
     Sequelize: any,
 }
-const seq = new Sequelize('postgres', 'postgres', process.env.POSTGRES_PASSWORD, {
+
+const seq = new Sequelize('postgres', process.env.DMD_DB_API_USER || 'diamond_api', process.env.DMD_DB_API_PASS, {
         host: 'db',
         dialect: 'postgres', // or 'mysql', 'sqlite', etc.
     });

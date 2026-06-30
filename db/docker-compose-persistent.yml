@@ -24,6 +24,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${DMD_DB_POSTGRES_PASS}
+      - DMD_DB_API_PASS=${DMD_DB_API_PASS:?set DMD_DB_API_PASS in db/.env}
     ports:
       - '127.0.0.1:${DMD_DB_POSTGRES_PORT}:5432'
     volumes:
@@ -40,7 +41,7 @@ services:
       - '127.0.0.1:3002:80'
     environment:
       - PGADMIN_DEFAULT_EMAIL=nobody@bit.diamonds
-      - PGADMIN_DEFAULT_PASSWORD=${DMD_PGADMIN_PASS:?set DMD_PGADMIN_PASS in db/.env (distinct from DMD_DB_POSTGRES_PASS)}
+      - PGADMIN_DEFAULT_PASSWORD=${DMD_PGADMIN_PASS:?set DMD_PGADMIN_PASS in db/.env}
     networks:
       - monitor-net
 
@@ -92,7 +93,7 @@ services:
       - "${HOST:-127.0.0.1}:${PORT:-9990}:${PORT:-9990}"
     environment:
       - NODE_ENV=development
-      - POSTGRES_PASSWORD=${DMD_DB_POSTGRES_PASS}
+      - DMD_DB_API_PASS=${DMD_DB_API_PASS:?set DMD_DB_API_PASS in db/.env}
       - REDIS_URL=redis://redis:6379
       - HOST=${HOST:-0.0.0.0}
       - PORT=${PORT:-9990}
