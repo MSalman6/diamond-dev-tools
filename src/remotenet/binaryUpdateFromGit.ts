@@ -2,6 +2,7 @@ import { ConfigManager } from '../configManager';
 import { NodeState } from '../net/nodeManager';
 import { cmdR } from '../remoteCommand';
 import { getBuildFromSourceCmd } from './buildFromSource';
+import { assertShellSafe } from '../utils/shellSafe';
 
 export async function doBinaryUpdateFromGit(n: NodeState): Promise<string> {
 
@@ -9,21 +10,21 @@ export async function doBinaryUpdateFromGit(n: NodeState): Promise<string> {
     const nodeName = `hbbft${n.nodeID}`;
     console.log(`=== ${nodeName} ===`);
 
-    const config = ConfigManager.getNetworkConfig();
+    const installDir = ConfigManager.getRemoteInstallDir();
     console.log(`pulling repo ${nodeName}`);
-    // result += cmdR(nodeName, `cd ~/${config.installDir} && git checkout start.sh reserved-peers spec.json && git pull`);
-    let remotes = cmdR(nodeName, `cd ~/${config.installDir}/diamond-node-git && git remote show`);
+    // result += cmdR(nodeName, `cd ~/${installDir} && git checkout start.sh reserved-peers spec.json && git pull`);
+    let remotes = cmdR(nodeName, `cd ~/${installDir}/diamond-node-git && git remote show`);
     console.log("remotes");
     result += remotes;
 
     console.log(remotes);
     if (!remotes.includes("surfingnerd")) {
-        result += cmdR(nodeName, `cd ~/${config.installDir}/diamond-node-git && git remote add surfingnerd https://github.com/SurfingNerd/diamond-node.git`);
+        result += cmdR(nodeName, `cd ~/${installDir}/diamond-node-git && git remote add surfingnerd https://github.com/SurfingNerd/diamond-node.git`);
     }
 
     const diamondNodeBranch = ConfigManager.getNodeBranch();
 
-    result += cmdR(nodeName, `cd ~/${config.installDir}/diamond-node-git &&  git fetch --all && git checkout ${diamondNodeBranch} && git pull`);
+    result += cmdR(nodeName, `cd ~/${installDir}/diamond-node-git &&  git fetch --all && git checkout ${diamondNodeBranch} && git pull`);
 
     try {
         console.log(`building ${nodeName}`);
@@ -46,8 +47,8 @@ export async function doBinaryUpdateFromGit(n: NodeState): Promise<string> {
 
     try {
         console.log(`copying diamond-node for ${nodeName}`);
-        const dmdProfile = ConfigManager.getConfig().openEthereumProfile;
-        const copyComand = `cp ~/${config.installDir}/diamond-node-git/target/${dmdProfile}/diamond-node ~/${config.installDir}/diamond-node`;
+        const dmdProfile = assertShellSafe(ConfigManager.getConfig().openEthereumProfile, 'openEthereumProfile');
+        const copyComand = `cp ~/${installDir}/diamond-node-git/target/${dmdProfile}/diamond-node ~/${installDir}/diamond-node`;
         // cmdR(nodeName, buildCmd);
         result += cmdR(nodeName, copyComand);
 

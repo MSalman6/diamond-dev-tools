@@ -1,16 +1,18 @@
 import * as child from 'child_process';
 import { sleep } from './utils/time';
+import { assertValidSshHost } from './utils/shellSafe';
 
 //executes a command on a remote Node.
 export function cmdR(hostSSH: string, command: string, logOutput: boolean = true, ignoreErrors: boolean = false): string {
 
-  //todo: proper escaping for the shell of command here.
-  const remoteCommand = `ssh -t -o LogLevel=QUIET ${hostSSH} "${command}"`;
+  // ssh arguments are passed as an argv array (no intermediate shell), so the local machine never
+  // parses `command`. The host is validated to keep it from being read as an ssh option.
+  assertValidSshHost(hostSSH);
 
-  console.log(`executing on ${hostSSH} : ${remoteCommand}`);
+  console.log(`executing on ${hostSSH} : ${command}`);
   try {
 
-    const result = child.execSync(remoteCommand, {});
+    const result = child.execFileSync('ssh', ['-t', '-o', 'LogLevel=QUIET', hostSSH, command], {});
     const txt = result.toString();
     if (logOutput) {
       console.log(txt);
@@ -40,11 +42,10 @@ export function cmdR(hostSSH: string, command: string, logOutput: boolean = true
 /// be aware, it still doesn't print out stdout on the fly.
 export async function cmdRemoteAsync(hostSSH: string, command: string): Promise<string> {
 
-  //console.log(command);
-  //todo: proper escaping for the shell of command here.
-  const remoteCommand = `ssh -t -o LogLevel=QUIET ${hostSSH} "${command}"`;
-  //console.log(remoteCommand);
-  console.log(`executing on ${hostSSH} : ${remoteCommand}`);
+  // The command is handed to ssh via spawn() as a separate argv element below, so there is no
+  // local shell. The host is validated so it cannot be read as an ssh option.
+  assertValidSshHost(hostSSH);
+  console.log(`executing on ${hostSSH} : ${command}`);
 
   let result = '';
 

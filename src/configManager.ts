@@ -8,6 +8,7 @@ import { Account, AddedAccount } from 'web3-core';
 import { parse } from 'ts-command-line-args';
 import { parseNetworkArgs } from './remotenet/remotenetArgs';
 import { Node } from './db/schema';
+import { assertShellSafe } from './utils/shellSafe';
 
 export interface NodeArgs {
     Footprint: {
@@ -154,7 +155,7 @@ export class ConfigManager {
         const alias = config.nodeRepoAlias;
 
         if (alias) {
-            return alias;
+            return assertShellSafe(alias, 'nodeRepoAlias');
         }
 
         return "origin";
@@ -165,11 +166,11 @@ export class ConfigManager {
         const url = config.nodeRepoUrl;
 
         if (url) {
-            return url;
+            return assertShellSafe(url, 'nodeRepoUrl');
         }
 
         const globalConfig = ConfigManager.getConfig();
-        return globalConfig.nodeRepoUrl;
+        return assertShellSafe(globalConfig.nodeRepoUrl, 'nodeRepoUrl');
     }
 
     static getLocalTargetNetworkFSDir(networkName?: string) : string { 
@@ -186,13 +187,13 @@ export class ConfigManager {
 
       const { nodeRepoBranch: nodeBranch } = this.getNetworkConfig();
       if (nodeBranch) {
-        return nodeBranch;
+        return assertShellSafe(nodeBranch, 'nodeBranch');
       }
-      return config.nodeBranch;
+      return assertShellSafe(config.nodeBranch, 'nodeBranch');
     }
 
     static getRemoteScreenName() {
-        return this.getChainName();
+        return assertShellSafe(this.getChainName(), 'remoteScreenName');
     }
     static getNodesDir(networkName?: string ): string {
       
@@ -217,7 +218,7 @@ export class ConfigManager {
     static getRemoteInstallDir(): string {
 
         const network = this.getNetworkConfig();
-        return network.installDir;
+        return assertShellSafe(network.installDir, 'installDir');
     }
 
     static getRpcSSH(): string { 
