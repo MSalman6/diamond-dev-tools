@@ -96,12 +96,15 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         }
       }
 
-      // Check if origin matches any allowed origin
+      // Match on exact scheme + host (parsed), never substring/prefix.
       const originMatches = allowedOrigins.some((allowed: string) => {
-        // Remove trailing slash for comparison
-        const cleanOrigin = origin.replace(/\/$/, '');
-        const cleanAllowed = allowed.replace(/\/$/, '');
-        return cleanOrigin === cleanAllowed || cleanOrigin.startsWith(cleanAllowed);
+        try {
+          const originUrl = new URL(origin);
+          const allowedUrl = new URL(allowed);
+          return originUrl.protocol === allowedUrl.protocol && originUrl.host === allowedUrl.host;
+        } catch (e) {
+          return false;
+        }
       });
 
       if (!originMatches) {

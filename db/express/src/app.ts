@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import db from './models';
 import routes from './routes';
+import { authIpThrottle } from './middleware/rateLimiter';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -21,6 +22,9 @@ app.use(express.json());
 app.get('/', (req: Request, res: Response) => {
     res.send('Hello from Express with Sequelize and TypeScript!');
 });
+
+// Per-IP guard ahead of the authenticated routers
+app.use(authIpThrottle);
 
 app.use(routes);
 

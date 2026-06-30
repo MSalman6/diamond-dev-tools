@@ -266,6 +266,57 @@ export const publicRateLimiter = async (req: Request, res: Response, next: NextF
   }
 };
 
+// Generous per-IP guard meant to run BEFORE authentication on protected routes.
+const AUTH_IP_RATE_LIMIT_PER_MINUTE = Number(process.env.AUTH_IP_RATE_LIMIT_PER_MINUTE) || 300;
+
+export const authIpThrottle = async (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const minuteKey = `ratelimit:authip:${ip}:minute`;
+
+  try {
+    let minuteCount = 0;
+    let minuteTTL = 60;
+
+    if (redisConnected && redisClient) {
+      try {
+        const result = await redisClient.multi()
+          .incr(minuteKey)
+          .expire(minuteKey, 60)
+          .ttl(minuteKey)
+          .exec();
+        if (result && result[0]) {
+          minuteCount = result[0] as unknown as number;
+          minuteTTL = (result[2] as unknown as number) || 60;
+        }
+      } catch (redisError) {
+        console.warn('Redis error, falling back to in-memory auth IP throttle:', redisError);
+        minuteCount = await memoryLimiter.increment(minuteKey, 60);
+        minuteTTL = await memoryLimiter.ttl(minuteKey);
+      }
+    } else {
+      minuteCount = await memoryLimiter.increment(minuteKey, 60);
+      minuteTTL = await memoryLimiter.ttl(minuteKey);
+    }
+
+    if (minuteCount > AUTH_IP_RATE_LIMIT_PER_MINUTE) {
+      res.set('Retry-After', minuteTTL.toString());
+      return res.status(429).json({
+        error: 'Too Many Requests',
+        message: `Rate limit exceeded. Maximum ${AUTH_IP_RATE_LIMIT_PER_MINUTE} requests per minute.`,
+        retryAfter: minuteTTL
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Auth IP throttle error:', error);
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Service is temporarily unavailable. Please try again later.'
+    });
+  }
+};
+
 // Export function to close Redis connection gracefully
 export const closeRedis = async () => {
   if (redisClient && redisConnected) {
