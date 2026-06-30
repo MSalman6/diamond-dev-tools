@@ -1,24 +1,35 @@
 version: '3'
+
+networks:
+    blockscout-net:
+        driver: bridge
+
 services:
     db:
         image: postgres:12.5
         environment:
-            POSTGRES_PASSWORD: enviu_dev
+            POSTGRES_PASSWORD: "${BLOCKSCOUT_DB_PASS:?set BLOCKSCOUT_DB_PASS in testnet/blockscout-local/.env}"
             POSTGRES_USER: postgres
-        network_mode: host
+        networks:
+            - blockscout-net
     blockscout:
         image: surfingnerd/blockscout-dmd:v0.9-411
         depends_on:
             - "db"
         tty: true
-        network_mode: host
+        ports:
+            - "127.0.0.1:4000:4000"
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        networks:
+            - blockscout-net
         environment:
-            ETHEREUM_JSONRPC_HTTP_URL: http://127.0.0.1:8540
-            ETHEREUM_JSONRPC_TRACE_URL: http://127.0.0.1:8540
-            ETHEREUM_JSONRPC_WS_URL: ws://127.0.0.1:9540
+            ETHEREUM_JSONRPC_HTTP_URL: http://host.docker.internal:8540
+            ETHEREUM_JSONRPC_TRACE_URL: http://host.docker.internal:8540
+            ETHEREUM_JSONRPC_WS_URL: ws://host.docker.internal:9540
             ETHEREUM_JSONRPC_VARIANT: parity
-            HOST: 127.17.0.1
-            DATABASE_URL: postgresql://postgres:enviu_dev@127.17.0.1:5432/explorer?ssl=false
+            HOST: 0.0.0.0
+            DATABASE_URL: "postgresql://postgres:${BLOCKSCOUT_DB_PASS:?set BLOCKSCOUT_DB_PASS in testnet/blockscout-local/.env}@db:5432/explorer?ssl=false"
             COIN: "DMD"
             SHOW_ADDRESS_MARKETCAP_PERCENTAGE: "false"
             DISABLE_EXCHANGE_RATES: "true"

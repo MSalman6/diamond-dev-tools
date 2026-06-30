@@ -3,7 +3,7 @@ services:
     db:
         image: postgres:12.20
         environment:
-            POSTGRES_PASSWORD: enviu_dev
+            POSTGRES_PASSWORD: "${BLOCKSCOUT_DB_PASS:?set BLOCKSCOUT_DB_PASS in testnet/blockscout/.env}"
             POSTGRES_USER: postgres
     blockscout:
         image: surfingnerd/blockscout-dmd:v0.9-411
@@ -18,7 +18,7 @@ services:
             ETHEREUM_JSONRPC_WS_URL: ws://62.171.133.46:54200
             ETHEREUM_JSONRPC_VARIANT: parity
             HOST: 127.17.0.1
-            DATABASE_URL: postgresql://postgres:enviu_dev@db:5432/explorer?ssl=false
+            DATABASE_URL: "postgresql://postgres:${BLOCKSCOUT_DB_PASS:?set BLOCKSCOUT_DB_PASS in testnet/blockscout/.env}@db:5432/explorer?ssl=false"
             COIN: "tDMD"
             SHOW_ADDRESS_MARKETCAP_PERCENTAGE: "false"
             DISABLE_EXCHANGE_RATES: "true"

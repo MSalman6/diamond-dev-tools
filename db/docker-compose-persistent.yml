@@ -40,7 +40,7 @@ services:
       - '127.0.0.1:3002:80'
     environment:
       - PGADMIN_DEFAULT_EMAIL=nobody@bit.diamonds
-      - PGADMIN_DEFAULT_PASSWORD=${DMD_DB_POSTGRES_PASS}
+      - PGADMIN_DEFAULT_PASSWORD=${DMD_PGADMIN_PASS:?set DMD_PGADMIN_PASS in db/.env (distinct from DMD_DB_POSTGRES_PASS)}
     networks:
       - monitor-net
 
