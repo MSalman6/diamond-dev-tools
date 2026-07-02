@@ -216,7 +216,7 @@ export const rateLimiter = async (req: Request, res: Response, next: NextFunctio
 // Per-IP rate limiter for unauthenticated public endpoints (e.g. /supply/*).
 const PUBLIC_RATE_LIMIT_PER_MINUTE = Number(process.env.PUBLIC_RATE_LIMIT_PER_MINUTE) || 30;
 
-export const publicRateLimiter = async (req: Request, res: Response, next: NextFunction) => {
+export const publicRateLimiter = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
   const minuteKey = `ratelimit:public:${ip}:minute`;
 
@@ -247,11 +247,12 @@ export const publicRateLimiter = async (req: Request, res: Response, next: NextF
 
     if (minuteCount > PUBLIC_RATE_LIMIT_PER_MINUTE) {
       res.set('Retry-After', minuteTTL.toString());
-      return res.status(429).json({
+      res.status(429).json({
         error: 'Too Many Requests',
         message: `Rate limit exceeded. Maximum ${PUBLIC_RATE_LIMIT_PER_MINUTE} requests per minute.`,
         retryAfter: minuteTTL
       });
+      return;
     }
 
     res.set('X-RateLimit-Limit-Minute', PUBLIC_RATE_LIMIT_PER_MINUTE.toString());
@@ -259,17 +260,18 @@ export const publicRateLimiter = async (req: Request, res: Response, next: NextF
     next();
   } catch (error) {
     console.error('Public rate limiting error:', error);
-    return res.status(503).json({
+    res.status(503).json({
       error: 'Service Unavailable',
       message: 'Service is temporarily unavailable. Please try again later.'
     });
+    return;
   }
 };
 
 // Generous per-IP guard meant to run BEFORE authentication on protected routes.
 const AUTH_IP_RATE_LIMIT_PER_MINUTE = Number(process.env.AUTH_IP_RATE_LIMIT_PER_MINUTE) || 300;
 
-export const authIpThrottle = async (req: Request, res: Response, next: NextFunction) => {
+export const authIpThrottle = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
   const minuteKey = `ratelimit:authip:${ip}:minute`;
 
@@ -300,20 +302,22 @@ export const authIpThrottle = async (req: Request, res: Response, next: NextFunc
 
     if (minuteCount > AUTH_IP_RATE_LIMIT_PER_MINUTE) {
       res.set('Retry-After', minuteTTL.toString());
-      return res.status(429).json({
+      res.status(429).json({
         error: 'Too Many Requests',
         message: `Rate limit exceeded. Maximum ${AUTH_IP_RATE_LIMIT_PER_MINUTE} requests per minute.`,
         retryAfter: minuteTTL
       });
+      return;
     }
 
     next();
   } catch (error) {
     console.error('Auth IP throttle error:', error);
-    return res.status(503).json({
+    res.status(503).json({
       error: 'Service Unavailable',
       message: 'Service is temporarily unavailable. Please try again later.'
     });
+    return;
   }
 };
 

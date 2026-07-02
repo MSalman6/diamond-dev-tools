@@ -70,9 +70,9 @@ services:
     env_file:
       - ../.env
     ports:
-      - "${HOST:-127.0.0.1}:${PORT:-9990}:${PORT:-9990}"
+      - "127.0.0.1:${PORT:-9990}:${PORT:-9990}"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-production}
       - DMD_DB_API_PASS=${DMD_DB_API_PASS:?set DMD_DB_API_PASS in db/.env}
       - DMD_DB_POSTGRES_PORT=${DMD_DB_POSTGRES_PORT}
       - POSTGRES_INSTANCE=db:${DMD_DB_POSTGRES_PORT}

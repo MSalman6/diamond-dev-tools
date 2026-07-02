@@ -123,6 +123,22 @@ else
     npx pg-migrations apply -c "postgres://postgres:$ENCODED_PASS@127.0.0.1:$DMD_DB_POSTGRES_PORT/postgres" -D db/migrations || true
 fi
 
+# Ensure the least-privilege API role exists
+: "${DMD_DB_API_PASS:?set DMD_DB_API_PASS (e.g. openssl rand -hex 24) before running}"
+echo "🔑 Ensuring least-privilege API role 'diamond_api'..."
+PGPASSWORD="$DMD_DB_POSTGRES_PASS" psql -v ON_ERROR_STOP=1 -v api_pass="$DMD_DB_API_PASS" \
+  -h 127.0.0.1 -p "$DMD_DB_POSTGRES_PORT" -U postgres -d postgres <<'SQL'
+SELECT 'CREATE ROLE diamond_api LOGIN'
+WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'diamond_api')\gexec
+ALTER ROLE diamond_api WITH LOGIN PASSWORD :'api_pass';
+GRANT CONNECT ON DATABASE postgres TO diamond_api;
+GRANT USAGE ON SCHEMA public TO diamond_api;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO diamond_api;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO diamond_api;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO diamond_api;
+GRANT INSERT, UPDATE, DELETE ON api_keys TO diamond_api;
+SQL
+
 echo ""
 echo "🎉 Database resume setup completed!"
 if [ "$FIRST_RUN" = true ]; then

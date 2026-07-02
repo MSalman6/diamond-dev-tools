@@ -115,7 +115,6 @@
     "db-grant-grafana-permissions": "ts-node src/db/runGrantGrafanaPermissions.ts",
     "db-update-ts-schema": "npx @databases/pg-schema-cli --database postgres://postgres:$DMD_DB_POSTGRES@$DMD_DB_POSTGRES_HOST:$DMD_DB_POSTGRES_PORT/postgres --directory src/db/schema",
     "db-fill-from-network": "ts-node src/db/runFillDb.ts",
-    "db-fill-from-network-persistent": "ts-node src/db/runFillDbPersistent.ts",
     "db-delete-tables": "ts-node src/db/delete-tables.ts",
     "db-create-tables": "ts-node src/db/create-tables.ts",
     "db-docker-delete-image": "echo deleting of cached image is required if container-content files are changed. && docker image rm db-db",

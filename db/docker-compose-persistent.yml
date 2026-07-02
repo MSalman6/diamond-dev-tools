@@ -90,12 +90,12 @@ services:
     env_file:
       - ../.env
     ports:
-      - "${HOST:-127.0.0.1}:${PORT:-9990}:${PORT:-9990}"
+      - "127.0.0.1:${PORT:-9990}:${PORT:-9990}"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-production}
       - DMD_DB_API_PASS=${DMD_DB_API_PASS:?set DMD_DB_API_PASS in db/.env}
       - REDIS_URL=redis://redis:6379
-      - HOST=${HOST:-0.0.0.0}
+      - HOST=0.0.0.0
       - PORT=${PORT:-9990}
       - RPC_URL=${RPC_URL_DOCKER}
     extra_hosts:

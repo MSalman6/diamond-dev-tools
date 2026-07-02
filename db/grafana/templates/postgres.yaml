@@ -9,10 +9,10 @@ datasources:
     type: postgres
     uid: 551795f4-3da0-45c1-a933-7b961dddef63
     url: db:5432
-    user: postgres
+    user: diamond_api
     database: postgres
     secureJsonData:
-      password: "${DMD_DB_POSTGRES_PASS}"
+      password: "${DMD_DB_API_PASS}"
     jsonData:
       sslmode: "disable" # disable/require/verify-ca/verify-full
       maxOpenConns: 10

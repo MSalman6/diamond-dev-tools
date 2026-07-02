@@ -21,6 +21,7 @@ else
     # Copy authorized_keys if it exists
     if [ -f "$AUTHORIZED_KEYS_SOURCE" ]; then
         mkdir -p "$USER_HOME/.ssh"
+        chmod 700 "$USER_HOME/.ssh"
         cp "$AUTHORIZED_KEYS_SOURCE" "$USER_HOME/.ssh/authorized_keys"
         chown -R "$USERNAME:$USERNAME" "$USER_HOME/.ssh"
         chmod 600 "$USER_HOME/.ssh/authorized_keys"
