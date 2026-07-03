@@ -60,7 +60,7 @@ echo "📝 Applying database migrations..."
 cd ..
 sleep 3
 ENCODED_PASS=$(python3 -c "import urllib.parse, os; print(urllib.parse.quote(os.environ['DMD_DB_POSTGRES_PASS'], safe=''))")
-npx pg-migrations apply -c "postgres://postgres:$ENCODED_PASS@127.0.0.1:$DMD_DB_POSTGRES_PORT/postgres" -D db/migrations
+npx @databases/pg-migrations apply -c "postgres://postgres:$ENCODED_PASS@127.0.0.1:$DMD_DB_POSTGRES_PORT/postgres" -D db/migrations
 
 # Ensure the least-privilege API role exists
 : "${DMD_DB_API_PASS:?set DMD_DB_API_PASS (e.g. openssl rand -hex 24) before running}"
