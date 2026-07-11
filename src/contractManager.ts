@@ -23,6 +23,12 @@ import JsonConnectivityTrackerHbbft from './abi/json/ConnectivityTrackerHbbft.js
 
 import JsonBonusScoreSystem from './abi/json/BonusScoreSystem.json';
 
+import { DMDRegistrarController } from './abi/contracts/DMDRegistrarController';
+import JsonDMDRegistrarController from './abi/json/DMDRegistrarController.json';
+
+import { DMDNames } from './abi/contracts/DMDNames';
+import JsonDMDNames from './abi/json/DMDNames.json';
+
 import { BlockType } from './abi/contracts/types';
 
 
@@ -30,8 +36,14 @@ import { BlockTransactionString } from 'web3-eth';
 import {
   AvailabilityEvent,
   ClaimedOrderedWithdrawalEvent,
+  DmdNameTransferEvent,
   GatherAbandonedStakesEvent,
   MovedStakeEvent,
+  NameActivatedEvent,
+  NameBlockedSetEvent,
+  NameDeactivatedEvent,
+  NameRegisteredEvent,
+  NameRenewedEvent,
   OrderedWithdrawalEvent,
   StakeChangedEvent
 } from './eventsVisitor';
@@ -63,7 +75,13 @@ export type ContractEvent = AvailabilityEvent
   | StakeChangedEvent
   | OrderedWithdrawalEvent
   | ClaimedOrderedWithdrawalEvent
-  | GatherAbandonedStakesEvent;
+  | GatherAbandonedStakesEvent
+  | NameRegisteredEvent
+  | NameActivatedEvent
+  | NameDeactivatedEvent
+  | NameRenewedEvent
+  | NameBlockedSetEvent
+  | DmdNameTransferEvent;
 
 
 export class DelegateRewardData {
@@ -120,6 +138,8 @@ export class ContractManager {
   private cachedPermission?: TxPermissionHbbft;
   private cachedBonusScoreSystem?: BonusScoreSystem;
   private cachedConnectivityTrackerHbbft?: ConnectivityTrackerHbbft;
+  private cachedDmdRegistrarController?: DMDRegistrarController;
+  private cachedDmdNames?: DMDNames;
   private cachedValidatorMinRewardPercent: Map<number, number> = new Map();
   
   private apyStakeFraction: BigNumber;
@@ -306,6 +326,263 @@ export class ContractManager {
 
     const networkConfig = ConfigManager.getNetworkConfig();
     return networkConfig.claimingPotAddress;
+  }
+
+  public async getDmdRegistrarControllerAddress(): Promise<string | undefined> {
+    if (process.env.DMD_REGISTRAR_CONTROLLER_ADDRESS) {
+      return process.env.DMD_REGISTRAR_CONTROLLER_ADDRESS;
+    }
+
+    const chainID = await this.web3.eth.getChainId();
+    if (chainID === 17771) {
+      return '0x26EeECc60964C219bFBeA25aBb86aB8b4590467B';
+    }
+
+    return undefined;
+  }
+
+  public async getDmdNamesAddress(): Promise<string | undefined> {
+    if (process.env.DMD_NAMES_ADDRESS) {
+      return process.env.DMD_NAMES_ADDRESS;
+    }
+
+    const chainID = await this.web3.eth.getChainId();
+    if (chainID === 17771) {
+      return '0x857C95B69b5dD7EFE4e5591B2e0C0a79aeBE9899';
+    }
+
+    return undefined;
+  }
+
+  public async getDmdRegistrarController(): Promise<DMDRegistrarController | undefined> {
+    if (this.cachedDmdRegistrarController) {
+      return this.cachedDmdRegistrarController;
+    }
+
+    const contractAddress = await this.getDmdRegistrarControllerAddress();
+    if (!contractAddress) {
+      return undefined;
+    }
+
+    const abi: any = JsonDMDRegistrarController;
+    const contract: any = new this.web3.eth.Contract(abi, contractAddress);
+    this.cachedDmdRegistrarController = contract;
+
+    return contract;
+  }
+
+  public async getDmdNames(): Promise<DMDNames | undefined> {
+    if (this.cachedDmdNames) {
+      return this.cachedDmdNames;
+    }
+
+    const contractAddress = await this.getDmdNamesAddress();
+    if (!contractAddress) {
+      return undefined;
+    }
+
+    const abi: any = JsonDMDNames;
+    const contract: any = new this.web3.eth.Contract(abi, contractAddress);
+    this.cachedDmdNames = contract;
+
+    return contract;
+  }
+
+  public async getNameRegisteredEvents(fromBlockNumber: number, toBlockNumber: number): Promise<NameRegisteredEvent[]> {
+    const registrar = await this.getDmdRegistrarController();
+    if (!registrar) {
+      return [];
+    }
+
+    const events = await registrar.getPastEvents('NameRegistered', { fromBlock: fromBlockNumber, toBlock: toBlockNumber });
+    const result = new Array<NameRegisteredEvent>();
+
+    for (const event of events) {
+      const values = event.returnValues;
+      const blockTimestamp = (await this.web3.eth.getBlock(event.blockNumber)).timestamp;
+
+      result.push(new NameRegisteredEvent(
+        'NameRegistered',
+        event.blockNumber,
+        Number(blockTimestamp),
+        Number(event.logIndex),
+        values.node,
+        values.labelHash,
+        values.name,
+        values.expiration,
+        event.transactionHash
+      ));
+    }
+
+    return result;
+  }
+
+  public async getNameActivatedEvents(fromBlockNumber: number, toBlockNumber: number): Promise<NameActivatedEvent[]> {
+    const registrar = await this.getDmdRegistrarController();
+    if (!registrar) {
+      return [];
+    }
+
+    const events = await registrar.getPastEvents('NameActivated', { fromBlock: fromBlockNumber, toBlock: toBlockNumber });
+    const result = new Array<NameActivatedEvent>();
+
+    for (const event of events) {
+      const values = event.returnValues;
+      const blockTimestamp = (await this.web3.eth.getBlock(event.blockNumber)).timestamp;
+
+      result.push(new NameActivatedEvent(
+        'NameActivated',
+        event.blockNumber,
+        Number(blockTimestamp),
+        Number(event.logIndex),
+        values.owner,
+        values.labelHash,
+        values.name,
+        event.transactionHash
+      ));
+    }
+
+    return result;
+  }
+
+  public async getNameDeactivatedEvents(fromBlockNumber: number, toBlockNumber: number): Promise<NameDeactivatedEvent[]> {
+    const registrar = await this.getDmdRegistrarController();
+    if (!registrar) {
+      return [];
+    }
+
+    const events = await registrar.getPastEvents('NameDeactivated', { fromBlock: fromBlockNumber, toBlock: toBlockNumber });
+    const result = new Array<NameDeactivatedEvent>();
+
+    for (const event of events) {
+      const values = event.returnValues;
+      const blockTimestamp = (await this.web3.eth.getBlock(event.blockNumber)).timestamp;
+
+      result.push(new NameDeactivatedEvent(
+        'NameDeactivated',
+        event.blockNumber,
+        Number(blockTimestamp),
+        Number(event.logIndex),
+        values.owner,
+        values.labelHash,
+        values.name,
+        event.transactionHash
+      ));
+    }
+
+    return result;
+  }
+
+  public async getNameRenewedEvents(fromBlockNumber: number, toBlockNumber: number): Promise<NameRenewedEvent[]> {
+    const registrar = await this.getDmdRegistrarController();
+    if (!registrar) {
+      return [];
+    }
+
+    const events = await registrar.getPastEvents('NameRenewed', { fromBlock: fromBlockNumber, toBlock: toBlockNumber });
+    const result = new Array<NameRenewedEvent>();
+
+    for (const event of events) {
+      const values = event.returnValues;
+      const blockTimestamp = (await this.web3.eth.getBlock(event.blockNumber)).timestamp;
+
+      result.push(new NameRenewedEvent(
+        'NameRenewed',
+        event.blockNumber,
+        Number(blockTimestamp),
+        Number(event.logIndex),
+        values.owner,
+        values.labelHash,
+        values.name,
+        values.expiration,
+        event.transactionHash
+      ));
+    }
+
+    return result;
+  }
+
+  public async getNameBlockedSetEvents(fromBlockNumber: number, toBlockNumber: number): Promise<NameBlockedSetEvent[]> {
+    const registrar = await this.getDmdRegistrarController();
+    if (!registrar) {
+      return [];
+    }
+
+    const events = await registrar.getPastEvents('NameBlockedSet', { fromBlock: fromBlockNumber, toBlock: toBlockNumber });
+    const result = new Array<NameBlockedSetEvent>();
+
+    for (const event of events) {
+      const values = event.returnValues;
+      const blockTimestamp = (await this.web3.eth.getBlock(event.blockNumber)).timestamp;
+
+      result.push(new NameBlockedSetEvent(
+        'NameBlockedSet',
+        event.blockNumber,
+        Number(blockTimestamp),
+        Number(event.logIndex),
+        values.labelHash,
+        values.name,
+        Boolean(values.blocked),
+        event.transactionHash
+      ));
+    }
+
+    return result;
+  }
+
+  public async getDmdNameTransferEvents(fromBlockNumber: number, toBlockNumber: number): Promise<DmdNameTransferEvent[]> {
+    const dmdNames = await this.getDmdNames();
+    if (!dmdNames) {
+      return [];
+    }
+
+    const events = await dmdNames.getPastEvents('Transfer', { fromBlock: fromBlockNumber, toBlock: toBlockNumber });
+    const result = new Array<DmdNameTransferEvent>();
+
+    for (const event of events) {
+      const values = event.returnValues;
+      const blockTimestamp = (await this.web3.eth.getBlock(event.blockNumber)).timestamp;
+
+      result.push(new DmdNameTransferEvent(
+        'Transfer',
+        event.blockNumber,
+        Number(blockTimestamp),
+        Number(event.logIndex),
+        values.from,
+        values.to,
+        values.tokenId,
+        event.transactionHash
+      ));
+    }
+
+    return result;
+  }
+
+  public async getDmdNamingEvents(fromBlockNumber: number, toBlockNumber: number): Promise<ContractEvent[]> {
+    const nameRegisteredEvents = await this.getNameRegisteredEvents(fromBlockNumber, toBlockNumber);
+    const nameActivatedEvents = await this.getNameActivatedEvents(fromBlockNumber, toBlockNumber);
+    const nameDeactivatedEvents = await this.getNameDeactivatedEvents(fromBlockNumber, toBlockNumber);
+    const nameRenewedEvents = await this.getNameRenewedEvents(fromBlockNumber, toBlockNumber);
+    const nameBlockedSetEvents = await this.getNameBlockedSetEvents(fromBlockNumber, toBlockNumber);
+    const transferEvents = await this.getDmdNameTransferEvents(fromBlockNumber, toBlockNumber);
+
+    const result: Array<ContractEvent> = [
+      ...nameRegisteredEvents,
+      ...nameActivatedEvents,
+      ...nameDeactivatedEvents,
+      ...nameRenewedEvents,
+      ...nameBlockedSetEvents,
+      ...transferEvents
+    ];
+
+    result.sort((a, b) => {
+      if (a.blockNumber !== b.blockNumber) {
+        return a.blockNumber - b.blockNumber;
+      }
+      return ((a as any).logIndex ?? 0) - ((b as any).logIndex ?? 0);
+    });
+
+    return result;
   }
 
   async getActualEpochEndTime() {
@@ -598,10 +875,12 @@ export class ContractManager {
 
     const availabilityEvents = await this.getAvailabilityEvents(fromBlockNumber, toBlockNumber);
     const stakeUpdateEvents = await this.getStakeUpdateEvents(fromBlockNumber, toBlockNumber);
+    const dmdNamingEvents = await this.getDmdNamingEvents(fromBlockNumber, toBlockNumber);
 
     let result: Array<ContractEvent> = [
       ...availabilityEvents,
-      ...stakeUpdateEvents
+      ...stakeUpdateEvents,
+      ...dmdNamingEvents
     ];
 
     result.sort((a, b) => a.blockNumber - b.blockNumber);

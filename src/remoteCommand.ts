@@ -5,8 +5,7 @@ import { assertValidSshHost } from './utils/shellSafe';
 //executes a command on a remote Node.
 export function cmdR(hostSSH: string, command: string, logOutput: boolean = true, ignoreErrors: boolean = false): string {
 
-  // ssh arguments are passed as an argv array (no intermediate shell), so the local machine never
-  // parses `command`. The host is validated to keep it from being read as an ssh option.
+  // run ssh via argv (no shell); validate the host so it can't be read as an option
   assertValidSshHost(hostSSH);
 
   console.log(`executing on ${hostSSH} : ${command}`);
@@ -42,8 +41,7 @@ export function cmdR(hostSSH: string, command: string, logOutput: boolean = true
 /// be aware, it still doesn't print out stdout on the fly.
 export async function cmdRemoteAsync(hostSSH: string, command: string): Promise<string> {
 
-  // The command is handed to ssh via spawn() as a separate argv element below, so there is no
-  // local shell. The host is validated so it cannot be read as an ssh option.
+  // ssh runs via spawn argv below (no shell); validate the host
   assertValidSshHost(hostSSH);
   console.log(`executing on ${hostSSH} : ${command}`);
 

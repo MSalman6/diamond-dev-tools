@@ -1,6 +1,5 @@
--- Grants for the least-privilege Express API role (diamond_api). Runs after the api_keys table
--- exists (migration 003). The role itself is created at DB init (container-content/05_app_role.sh);
--- the guard makes this a no-op in environments where that role has not been created.
+-- Grants for the diamond_api role (created at DB init). Runs after api_keys exists (003).
+-- No-op if the role is absent.
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'diamond_api') THEN

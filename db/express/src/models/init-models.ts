@@ -9,6 +9,10 @@ import { delegate_reward as _delegate_reward } from "./delegate_reward";
 import type { delegate_rewardAttributes, delegate_rewardCreationAttributes } from "./delegate_reward";
 import { delegate_staker as _delegate_staker } from "./delegate_staker";
 import type { delegate_stakerAttributes, delegate_stakerCreationAttributes } from "./delegate_staker";
+import { dmd_names as _dmd_names } from "./dmd_names";
+import type { dmd_namesAttributes, dmd_namesCreationAttributes } from "./dmd_names";
+import { dmd_name_events as _dmd_name_events } from "./dmd_name_events";
+import type { dmd_name_eventsAttributes, dmd_name_eventsCreationAttributes } from "./dmd_name_events";
 import { headers as _headers } from "./headers";
 import type { headersAttributes, headersCreationAttributes } from "./headers";
 import { node as _node } from "./node";
@@ -34,6 +38,8 @@ export {
   _bonus_score_history as bonus_score_history,
   _delegate_reward as delegate_reward,
   _delegate_staker as delegate_staker,
+  _dmd_names as dmd_names,
+  _dmd_name_events as dmd_name_events,
   _headers as headers,
   _node as node,
   _ordered_withdrawal as ordered_withdrawal,
@@ -56,6 +62,10 @@ export type {
   delegate_rewardCreationAttributes,
   delegate_stakerAttributes,
   delegate_stakerCreationAttributes,
+  dmd_namesAttributes,
+  dmd_namesCreationAttributes,
+  dmd_name_eventsAttributes,
+  dmd_name_eventsCreationAttributes,
   headersAttributes,
   headersCreationAttributes,
   nodeAttributes,
@@ -82,6 +92,8 @@ export function initModels(sequelize: Sequelize) {
   const bonus_score_history = _bonus_score_history.initModel(sequelize);
   const delegate_reward = _delegate_reward.initModel(sequelize);
   const delegate_staker = _delegate_staker.initModel(sequelize);
+  const dmd_names = _dmd_names.initModel(sequelize);
+  const dmd_name_events = _dmd_name_events.initModel(sequelize);
   const headers = _headers.initModel(sequelize);
   const node = _node.initModel(sequelize);
   const ordered_withdrawal = _ordered_withdrawal.initModel(sequelize);
@@ -153,6 +165,8 @@ export function initModels(sequelize: Sequelize) {
     bonus_score_history: bonus_score_history,
     delegate_reward: delegate_reward,
     delegate_staker: delegate_staker,
+    dmd_names: dmd_names,
+    dmd_name_events: dmd_name_events,
     headers: headers,
     node: node,
     ordered_withdrawal: ordered_withdrawal,

@@ -2,12 +2,14 @@ import BigNumber from "bignumber.js";
 
 import { DbManager, pgNumericToBn } from "./db/database";
 import { addressToBuffer, parseEther } from "./utils/ether";
+import { hexToBuffer, tokenIdToLabelHash } from "./utils/hex";
 
 
 interface BaseEvent {
     eventName: string;
     blockNumber: number;
     blockTimestamp: number;
+    logIndex?: number;
 
     accept(visitor: BaseVisitor): Promise<void>;
 }
@@ -24,6 +26,18 @@ interface BaseVisitor {
     visitMovedStakeEvent(event: MovedStakeEvent): Promise<void>;
 
     visitGatherAbandonedStakesEvent(event: GatherAbandonedStakesEvent): Promise<void>;
+
+    visitNameRegisteredEvent(event: NameRegisteredEvent): Promise<void>;
+
+    visitNameActivatedEvent(event: NameActivatedEvent): Promise<void>;
+
+    visitNameDeactivatedEvent(event: NameDeactivatedEvent): Promise<void>;
+
+    visitNameRenewedEvent(event: NameRenewedEvent): Promise<void>;
+
+    visitNameBlockedSetEvent(event: NameBlockedSetEvent): Promise<void>;
+
+    visitDmdNameTransferEvent(event: DmdNameTransferEvent): Promise<void>;
 }
 
 export class StakeChangedEvent implements BaseEvent {
@@ -131,6 +145,114 @@ export class AvailabilityEvent implements BaseEvent {
 
     public async accept(visitor: BaseVisitor): Promise<void> {
         await visitor.visitAvailabilityEvents(this)
+    }
+}
+
+export class NameRegisteredEvent implements BaseEvent {
+    public constructor(
+        public eventName: string,
+        public blockNumber: number,
+        public blockTimestamp: number,
+        public logIndex: number,
+        public owner: string,
+        public labelHash: string,
+        public name: string,
+        public expiration: string,
+        public txHash: string
+    ) { }
+
+    public async accept(visitor: BaseVisitor): Promise<void> {
+        await visitor.visitNameRegisteredEvent(this);
+    }
+}
+
+export class NameActivatedEvent implements BaseEvent {
+    public constructor(
+        public eventName: string,
+        public blockNumber: number,
+        public blockTimestamp: number,
+        public logIndex: number,
+        public owner: string,
+        public labelHash: string,
+        public name: string,
+        public txHash: string
+    ) { }
+
+    public async accept(visitor: BaseVisitor): Promise<void> {
+        await visitor.visitNameActivatedEvent(this);
+    }
+}
+
+export class NameDeactivatedEvent implements BaseEvent {
+    public constructor(
+        public eventName: string,
+        public blockNumber: number,
+        public blockTimestamp: number,
+        public logIndex: number,
+        public owner: string,
+        public labelHash: string,
+        public name: string,
+        public txHash: string
+    ) { }
+
+    public async accept(visitor: BaseVisitor): Promise<void> {
+        await visitor.visitNameDeactivatedEvent(this);
+    }
+}
+
+export class NameRenewedEvent implements BaseEvent {
+    public constructor(
+        public eventName: string,
+        public blockNumber: number,
+        public blockTimestamp: number,
+        public logIndex: number,
+        public owner: string,
+        public labelHash: string,
+        public name: string,
+        public expiration: string,
+        public txHash: string
+    ) { }
+
+    public async accept(visitor: BaseVisitor): Promise<void> {
+        await visitor.visitNameRenewedEvent(this);
+    }
+}
+
+export class NameBlockedSetEvent implements BaseEvent {
+    public constructor(
+        public eventName: string,
+        public blockNumber: number,
+        public blockTimestamp: number,
+        public logIndex: number,
+        public labelHash: string,
+        public name: string,
+        public blocked: boolean,
+        public txHash: string
+    ) { }
+
+    public async accept(visitor: BaseVisitor): Promise<void> {
+        await visitor.visitNameBlockedSetEvent(this);
+    }
+}
+
+export class DmdNameTransferEvent implements BaseEvent {
+    public constructor(
+        public eventName: string,
+        public blockNumber: number,
+        public blockTimestamp: number,
+        public logIndex: number,
+        public from: string,
+        public to: string,
+        public tokenId: string,
+        public txHash: string
+    ) { }
+
+    public async accept(visitor: BaseVisitor): Promise<void> {
+        await visitor.visitDmdNameTransferEvent(this);
+    }
+
+    public isMint(): boolean {
+        return BigInt(this.from) === BigInt(0);
     }
 }
 
@@ -422,6 +544,205 @@ export class EventVisitor implements BaseVisitor {
             to_block: event.blockNumber,
             node: addressToBuffer(event.poolAddress),
             stake_amount: stakeAmount.toString()
+        });
+    }
+
+    public async visitNameRegisteredEvent(event: NameRegisteredEvent): Promise<void> {
+        const labelHash = hexToBuffer(event.labelHash);
+
+        await this.dbManager.upsertDmdName({
+            label_hash: labelHash,
+            label: event.name,
+            owner: null,
+            creator: null,
+            created_block: event.blockNumber,
+            created_timestamp: event.blockTimestamp,
+            expiration: event.expiration,
+            active: null,
+            blocked: null,
+            last_action_type: 'Registered',
+            last_action_block: event.blockNumber,
+            last_action_timestamp: event.blockTimestamp
+        });
+
+        await this.dbManager.insertDmdNameEvent({
+            label_hash: labelHash,
+            label: event.name,
+            event_type: 'Registered',
+            actor_address: addressToBuffer(event.owner),
+            from_address: null,
+            to_address: null,
+            expiration: event.expiration,
+            blocked: null,
+            block_number: event.blockNumber,
+            block_timestamp: event.blockTimestamp,
+            tx_hash: hexToBuffer(event.txHash)
+        });
+    }
+
+    public async visitNameActivatedEvent(event: NameActivatedEvent): Promise<void> {
+        const labelHash = hexToBuffer(event.labelHash);
+
+        await this.dbManager.upsertDmdName({
+            label_hash: labelHash,
+            label: event.name,
+            owner: null,
+            creator: null,
+            created_block: null,
+            created_timestamp: null,
+            expiration: null,
+            active: true,
+            blocked: null,
+            last_action_type: 'Activated',
+            last_action_block: event.blockNumber,
+            last_action_timestamp: event.blockTimestamp
+        });
+
+        await this.dbManager.insertDmdNameEvent({
+            label_hash: labelHash,
+            label: event.name,
+            event_type: 'Activated',
+            actor_address: addressToBuffer(event.owner),
+            from_address: null,
+            to_address: null,
+            expiration: null,
+            blocked: null,
+            block_number: event.blockNumber,
+            block_timestamp: event.blockTimestamp,
+            tx_hash: hexToBuffer(event.txHash)
+        });
+    }
+
+    public async visitNameDeactivatedEvent(event: NameDeactivatedEvent): Promise<void> {
+        const labelHash = hexToBuffer(event.labelHash);
+
+        await this.dbManager.upsertDmdName({
+            label_hash: labelHash,
+            label: event.name,
+            owner: null,
+            creator: null,
+            created_block: null,
+            created_timestamp: null,
+            expiration: null,
+            active: false,
+            blocked: null,
+            last_action_type: 'Deactivated',
+            last_action_block: event.blockNumber,
+            last_action_timestamp: event.blockTimestamp
+        });
+
+        await this.dbManager.insertDmdNameEvent({
+            label_hash: labelHash,
+            label: event.name,
+            event_type: 'Deactivated',
+            actor_address: addressToBuffer(event.owner),
+            from_address: null,
+            to_address: null,
+            expiration: null,
+            blocked: null,
+            block_number: event.blockNumber,
+            block_timestamp: event.blockTimestamp,
+            tx_hash: hexToBuffer(event.txHash)
+        });
+    }
+
+    public async visitNameRenewedEvent(event: NameRenewedEvent): Promise<void> {
+        const labelHash = hexToBuffer(event.labelHash);
+
+        await this.dbManager.upsertDmdName({
+            label_hash: labelHash,
+            label: event.name,
+            owner: null,
+            creator: null,
+            created_block: null,
+            created_timestamp: null,
+            expiration: event.expiration,
+            active: null,
+            blocked: null,
+            last_action_type: 'Renewed',
+            last_action_block: event.blockNumber,
+            last_action_timestamp: event.blockTimestamp
+        });
+
+        await this.dbManager.insertDmdNameEvent({
+            label_hash: labelHash,
+            label: event.name,
+            event_type: 'Renewed',
+            actor_address: addressToBuffer(event.owner),
+            from_address: null,
+            to_address: null,
+            expiration: event.expiration,
+            blocked: null,
+            block_number: event.blockNumber,
+            block_timestamp: event.blockTimestamp,
+            tx_hash: hexToBuffer(event.txHash)
+        });
+    }
+
+    public async visitNameBlockedSetEvent(event: NameBlockedSetEvent): Promise<void> {
+        const labelHash = hexToBuffer(event.labelHash);
+
+        await this.dbManager.upsertDmdName({
+            label_hash: labelHash,
+            label: event.name,
+            owner: null,
+            creator: null,
+            created_block: null,
+            created_timestamp: null,
+            expiration: null,
+            active: null,
+            blocked: event.blocked,
+            last_action_type: 'BlockedSet',
+            last_action_block: event.blockNumber,
+            last_action_timestamp: event.blockTimestamp
+        });
+
+        await this.dbManager.insertDmdNameEvent({
+            label_hash: labelHash,
+            label: event.name,
+            event_type: 'BlockedSet',
+            actor_address: null,
+            from_address: null,
+            to_address: null,
+            expiration: null,
+            blocked: event.blocked,
+            block_number: event.blockNumber,
+            block_timestamp: event.blockTimestamp,
+            tx_hash: hexToBuffer(event.txHash)
+        });
+    }
+
+    public async visitDmdNameTransferEvent(event: DmdNameTransferEvent): Promise<void> {
+        const labelHash = hexToBuffer(tokenIdToLabelHash(event.tokenId));
+        const isMint = event.isMint();
+
+        await this.dbManager.upsertDmdName({
+            label_hash: labelHash,
+            label: null,
+            owner: addressToBuffer(event.to),
+            creator: isMint ? addressToBuffer(event.to) : null,
+            created_block: isMint ? event.blockNumber : null,
+            created_timestamp: isMint ? event.blockTimestamp : null,
+            expiration: null,
+            active: isMint ? false : null,
+            blocked: null,
+            last_action_type: 'Transfer',
+            last_action_block: event.blockNumber,
+            last_action_timestamp: event.blockTimestamp
+        });
+
+        await this.dbManager.insertDmdNameEvent({
+            label_hash: labelHash,
+            label: null,
+            event_type: 'Transfer',
+            actor_address: addressToBuffer(event.to),
+            from_address: addressToBuffer(event.from),
+            to_address: addressToBuffer(event.to),
+            expiration: null,
+            blocked: null,
+            block_number: event.blockNumber,
+            block_timestamp: event.blockTimestamp,
+            tx_hash: hexToBuffer(event.txHash)
         });
     }
 

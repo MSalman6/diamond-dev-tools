@@ -175,6 +175,91 @@ const listValidatorEpochRewards = async (req: any, res: any) => {
     }
 };
 
+// GET /node/:address/epoch-rewards/daily
+//
+// Daily (UTC) reward series for a validator with a rolling 30-day rpt30.
+// The rolling window spans full history; range only limits which days are returned.
+const DAILY_RANGE_DAYS: Record<string, number | null> = {
+    '30d': 30,
+    '1y': 365,
+    all: null,
+};
+
+const listValidatorDailyEpochRewards = async (req: any, res: any) => {
+    const { address } = req.params;
+    const range = (req.query.range as string) || '30d';
+    const rangeDays = DAILY_RANGE_DAYS[range] ?? null;
+
+    try {
+        const rows: any[] = await posdao_epoch_node.sequelize!.query(
+            `WITH epochs AS (
+                SELECT
+                    pen.id_posdao_epoch         AS epoch,
+                    pen.owner_reward            AS owner_reward,
+                    pen.delegators_total_reward AS delegators_total_reward,
+                    pen.total_pool_reward       AS total_pool_reward,
+                    pen.total_staked_snapshot   AS total_staked_snapshot,
+                    h.block_time::date          AS day
+                FROM posdao_epoch_node pen
+                JOIN posdao_epoch pe ON pe.id = pen.id_posdao_epoch
+                JOIN headers h       ON h.block_number = pe.block_end
+                WHERE '0x' || encode(pen.id_node, 'hex') = lower($1)
+            ),
+            daily AS (
+                SELECT
+                    day,
+                    SUM(total_pool_reward)                                    AS total_pool_reward_sum,
+                    SUM(owner_reward)                                         AS owner_reward_sum,
+                    SUM(delegators_total_reward)                             AS delegators_day_sum,
+                    (ARRAY_AGG(total_staked_snapshot ORDER BY epoch DESC))[1] AS last_staked_snapshot,
+                    COUNT(*)                                                  AS epoch_count
+                FROM epochs
+                GROUP BY day
+            ),
+            rolling AS (
+                SELECT
+                    day,
+                    total_pool_reward_sum,
+                    owner_reward_sum,
+                    epoch_count,
+                    last_staked_snapshot,
+                    SUM(delegators_day_sum) OVER (
+                        ORDER BY (day - DATE '1970-01-01')
+                        RANGE BETWEEN 29 PRECEDING AND CURRENT ROW
+                    ) AS rolling_delegators_30d
+                FROM daily
+            )
+            SELECT
+                to_char(day, 'YYYY-MM-DD') AS date,
+                CASE WHEN last_staked_snapshot > 0
+                     THEN (rolling_delegators_30d / last_staked_snapshot) * 1000
+                     ELSE 0 END           AS rpt30,
+                total_pool_reward_sum,
+                owner_reward_sum,
+                epoch_count
+             FROM rolling
+             WHERE $2::int IS NULL OR day >= (CURRENT_DATE - ($2::int - 1))
+             ORDER BY day ASC`,
+            { bind: [address, rangeDays], type: QueryTypes.SELECT }
+        );
+
+        res.json({
+            data: rows.map((r) => ({
+                date: r.date,
+                rpt30: parseFloat(r.rpt30) || 0,
+                total_pool_reward_sum: r.total_pool_reward_sum,
+                owner_reward_sum: r.owner_reward_sum,
+                epoch_count: parseInt(r.epoch_count),
+            })),
+            range,
+            count: rows.length,
+        });
+    } catch (error) {
+        console.error('Error fetching validator daily epoch rewards:', error);
+        res.status(500).json({ error: 'Failed to fetch validator daily epoch rewards' });
+    }
+};
+
 // GET /node/:address/reward-stats
 //
 // 30-day aggregated metrics for a validator: VOS30, RpT30, AEP30, EstimatedAPY.
@@ -456,6 +541,7 @@ const batchDelegatorRewardStats = async (req: any, res: any) => {
 export default {
     listDelegatorRewards,
     listValidatorEpochRewards,
+    listValidatorDailyEpochRewards,
     getValidatorRewardStats,
     getDelegatorRewardStats,
     batchValidatorRewardStats,

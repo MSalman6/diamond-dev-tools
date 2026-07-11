@@ -79,6 +79,8 @@ const TIMESTAMP_TYPE_ID = 1114;
 
 /// Tables of the DB in the order of dependency reversed.
 export const DB_TABLES = [
+  "dmd_name_events",
+  "dmd_names",
   "stake_transactions",
   "bonus_score_change_reasons",
   "stake_delegators",
@@ -1065,6 +1067,123 @@ export class DbManager {
       `);
     } catch (error) {
       console.error(`Error inserting stake transaction (${params.action_type} block ${params.block_number}):`, error);
+      throw error;
+    }
+  }
+
+  public async upsertDmdName(params: {
+    label_hash: Buffer;
+    label?: string | null;
+    owner?: Buffer | null;
+    creator?: Buffer | null;
+    created_block?: number | null;
+    created_timestamp?: number | null;
+    expiration?: string | null;
+    active?: boolean | null;
+    blocked?: boolean | null;
+    last_action_type: string;
+    last_action_block: number;
+    last_action_timestamp: number;
+  }) {
+    try {
+      await this.connectionPool.query(sql`
+        INSERT INTO dmd_names (
+          label_hash,
+          label,
+          owner,
+          creator,
+          created_block,
+          created_timestamp,
+          expiration,
+          active,
+          blocked,
+          last_action_type,
+          last_action_block,
+          last_action_timestamp,
+          updated_at
+        ) VALUES (
+          ${params.label_hash},
+          ${params.label ?? null},
+          ${params.owner ?? null},
+          ${params.creator ?? null},
+          ${params.created_block ?? null},
+          ${params.created_timestamp ?? null},
+          ${params.expiration ?? null},
+          ${params.active ?? null},
+          ${params.blocked ?? null},
+          ${params.last_action_type},
+          ${params.last_action_block},
+          ${params.last_action_timestamp},
+          NOW()
+        )
+        ON CONFLICT (label_hash) DO UPDATE SET
+          label = COALESCE(EXCLUDED.label, dmd_names.label),
+          owner = COALESCE(EXCLUDED.owner, dmd_names.owner),
+          creator = COALESCE(dmd_names.creator, EXCLUDED.creator),
+          created_block = COALESCE(dmd_names.created_block, EXCLUDED.created_block),
+          created_timestamp = COALESCE(dmd_names.created_timestamp, EXCLUDED.created_timestamp),
+          expiration = COALESCE(EXCLUDED.expiration, dmd_names.expiration),
+          active = COALESCE(EXCLUDED.active, dmd_names.active),
+          blocked = COALESCE(EXCLUDED.blocked, dmd_names.blocked),
+          last_action_type = EXCLUDED.last_action_type,
+          last_action_block = EXCLUDED.last_action_block,
+          last_action_timestamp = EXCLUDED.last_action_timestamp,
+          updated_at = NOW()
+      `);
+    } catch (error) {
+      console.error(`Error upserting dmd_names (label_hash 0x${params.label_hash.toString('hex')}):`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Append an entry to the DMD name event log (dmd_name_events)
+   */
+  public async insertDmdNameEvent(params: {
+    label_hash: Buffer;
+    label?: string | null;
+    event_type: string;
+    actor_address?: Buffer | null;
+    from_address?: Buffer | null;
+    to_address?: Buffer | null;
+    expiration?: string | null;
+    blocked?: boolean | null;
+    block_number: number;
+    block_timestamp: number;
+    tx_hash?: Buffer | null;
+  }) {
+    try {
+      await this.connectionPool.query(sql`
+        INSERT INTO dmd_name_events (
+          label_hash,
+          label,
+          event_type,
+          actor_address,
+          from_address,
+          to_address,
+          expiration,
+          blocked,
+          block_number,
+          block_timestamp,
+          tx_hash,
+          created_at
+        ) VALUES (
+          ${params.label_hash},
+          ${params.label ?? null},
+          ${params.event_type},
+          ${params.actor_address ?? null},
+          ${params.from_address ?? null},
+          ${params.to_address ?? null},
+          ${params.expiration ?? null},
+          ${params.blocked ?? null},
+          ${params.block_number},
+          ${params.block_timestamp},
+          ${params.tx_hash ?? null},
+          NOW()
+        )
+      `);
+    } catch (error) {
+      console.error(`Error inserting dmd_name_event (${params.event_type} block ${params.block_number}):`, error);
       throw error;
     }
   }

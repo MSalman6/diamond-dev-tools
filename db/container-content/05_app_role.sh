@@ -1,7 +1,6 @@
 #!/bin/bash
-# Creates a least-privilege login role for the Express API so it never connects as the postgres
-# superuser. Runs once at first database initialization (postgres /docker-entrypoint-initdb.d).
-# Requires DMD_DB_API_PASS in the container environment (the compose db service passes it through).
+# Creates the diamond_api login role at first DB init (docker-entrypoint-initdb.d).
+# Requires DMD_DB_API_PASS in the environment.
 set -euo pipefail
 
 if [ -z "${DMD_DB_API_PASS:-}" ]; then

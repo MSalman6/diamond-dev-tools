@@ -85,6 +85,26 @@ router.get(
 );
 
 //
+// GET /node/:address/epoch-rewards/daily
+//
+// Daily-aggregated epoch rewards for a validator (UTC calendar day).
+//
+// Query params:
+//   range – 30d | 1y | all (default 30d)
+//
+router.get(
+    '/node/:address/epoch-rewards/daily',
+    [
+        authenticate,
+        rateLimiter,
+        param('address').isHexadecimal().isLength({ min: 42, max: 42 }),
+        query('range').optional().isIn(['30d', '1y', 'all']),
+        Params.validate,
+    ],
+    rewards.listValidatorDailyEpochRewards
+);
+
+//
 // GET /node/:address/reward-stats
 //
 // Aggregated 30-day reward metrics for a validator:
