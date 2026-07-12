@@ -497,6 +497,7 @@ export class DbManager {
         node_operator_reward: nodeOperatorReward.toString(),
         delegators_total_reward: delegatorsTotal.toString(),
         total_staked_snapshot: totalStake.toString(),
+        reward_computed: true,
       });
     }, `updateValidatorReward(${rewardedValidator}, epoch ${epoch})`);
   }
@@ -538,7 +539,8 @@ export class DbManager {
         id_posdao_epoch: posdaoEpoch,
         is_claimed: null,
         owner_reward: null,
-        epoch_apy: "0"
+        epoch_apy: "0",
+        reward_computed: false
       });
 
       return result[0];

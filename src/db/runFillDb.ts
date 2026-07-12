@@ -9,6 +9,7 @@ import { sleep } from "../utils/time";
 import { ValidatorObserver } from "./validatorObserver";
 import { bufferToAddress, parseEther } from "../utils/ether";
 import { BonusScoreProcessor } from "./bonusScoreProcessor";
+import BigNumber from "bignumber.js";
 
 
 async function run() {
@@ -340,6 +341,18 @@ async function run() {
                             );
 
                             if (totalPoolReward.isZero()) {
+                                const totalStake = await contractManager.getSnapshotPoolTotalStakeAmount(epochAtBlockStart, pool);
+                                await dbManager.updateValidatorReward(
+                                    pool,
+                                    epochAtBlockStart,
+                                    new BigNumber(0), // validator reward
+                                    new BigNumber(0), // apy
+                                    new BigNumber(0), // total pool reward
+                                    new BigNumber(0), // validator fixed reward
+                                    new BigNumber(0), // node operator reward
+                                    new BigNumber(0), // delegators total reward
+                                    totalStake
+                                );
                                 continue;
                             }
 

@@ -14,6 +14,7 @@ export interface posdao_epoch_nodeAttributes {
   node_operator_reward: number;
   delegators_total_reward: number;
   total_staked_snapshot: number;
+  reward_computed: boolean;
 }
 
 export type posdao_epoch_nodePk = "id_node" | "id_posdao_epoch";
@@ -32,6 +33,7 @@ export class posdao_epoch_node extends Model<posdao_epoch_nodeAttributes, posdao
   node_operator_reward!: number;
   delegators_total_reward!: number;
   total_staked_snapshot!: number;
+  reward_computed!: boolean;
 
   // posdao_epoch_node belongsTo node via id_node
   id_node_node!: node;
@@ -101,6 +103,11 @@ export class posdao_epoch_node extends Model<posdao_epoch_nodeAttributes, posdao
       type: DataTypes.DECIMAL,
       allowNull: false,
       defaultValue: 0
+    },
+    reward_computed: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
     }
   }, {
     sequelize,

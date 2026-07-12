@@ -4,7 +4,8 @@ ALTER TABLE posdao_epoch_node
     ADD COLUMN IF NOT EXISTS validator_fixed_reward  NUMERIC NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS node_operator_reward    NUMERIC NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS delegators_total_reward NUMERIC NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS total_staked_snapshot   NUMERIC NOT NULL DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS total_staked_snapshot   NUMERIC NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS reward_computed          BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Index for per-delegator reward queries.
 CREATE INDEX IF NOT EXISTS idx_delegate_reward_delegator

@@ -40,6 +40,10 @@ interface PosdaoEpochNode {
    * @default 0
    */
   total_staked_snapshot: string
+  /**
+   * @default false
+   */
+  reward_computed: boolean
 }
 export default PosdaoEpochNode;
 
@@ -60,5 +64,9 @@ interface PosdaoEpochNode_InsertParameters {
   node_operator_reward?: string
   delegators_total_reward?: string
   total_staked_snapshot?: string
+  /**
+   * @default false
+   */
+  reward_computed?: boolean
 }
 export type {PosdaoEpochNode_InsertParameters}

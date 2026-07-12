@@ -150,6 +150,7 @@ const listValidatorEpochRewards = async (req: any, res: any) => {
                 pen.total_staked_snapshot,
                 pen.epoch_apy,
                 pen.is_claimed,
+                pen.reward_computed,
                 pe.block_start,
                 pe.block_end,
                 h.block_time                 AS epoch_end_time,
@@ -208,11 +209,12 @@ const listValidatorDailyEpochRewards = async (req: any, res: any) => {
             daily AS (
                 SELECT
                     day,
-                    SUM(total_pool_reward)                                    AS total_pool_reward_sum,
-                    SUM(owner_reward)                                         AS owner_reward_sum,
-                    SUM(delegators_total_reward)                             AS delegators_day_sum,
-                    (ARRAY_AGG(total_staked_snapshot ORDER BY epoch DESC))[1] AS last_staked_snapshot,
-                    COUNT(*)                                                  AS epoch_count
+                    SUM(COALESCE(total_pool_reward, 0))       AS total_pool_reward_sum,
+                    SUM(COALESCE(owner_reward, 0))            AS owner_reward_sum,
+                    SUM(COALESCE(delegators_total_reward, 0)) AS delegators_day_sum,
+                    (ARRAY_AGG(total_staked_snapshot ORDER BY epoch DESC)
+                        FILTER (WHERE total_staked_snapshot > 0))[1] AS last_nonzero_snapshot,
+                    COUNT(*)                                  AS epoch_count
                 FROM epochs
                 GROUP BY day
             ),
@@ -222,17 +224,21 @@ const listValidatorDailyEpochRewards = async (req: any, res: any) => {
                     total_pool_reward_sum,
                     owner_reward_sum,
                     epoch_count,
-                    last_staked_snapshot,
                     SUM(delegators_day_sum) OVER (
                         ORDER BY (day - DATE '1970-01-01')
                         RANGE BETWEEN 29 PRECEDING AND CURRENT ROW
-                    ) AS rolling_delegators_30d
+                    ) AS rolling_delegators_30d,
+                    ARRAY_AGG(last_nonzero_snapshot) FILTER (WHERE last_nonzero_snapshot IS NOT NULL) OVER (
+                        ORDER BY (day - DATE '1970-01-01')
+                        RANGE BETWEEN 29 PRECEDING AND CURRENT ROW
+                    ) AS filled_snapshots
                 FROM daily
             )
             SELECT
                 to_char(day, 'YYYY-MM-DD') AS date,
-                CASE WHEN last_staked_snapshot > 0
-                     THEN (rolling_delegators_30d / last_staked_snapshot) * 1000
+                CASE WHEN filled_snapshots IS NOT NULL
+                          AND filled_snapshots[cardinality(filled_snapshots)] > 0
+                     THEN (rolling_delegators_30d / filled_snapshots[cardinality(filled_snapshots)]) * 1000
                      ELSE 0 END           AS rpt30,
                 total_pool_reward_sum,
                 owner_reward_sum,
