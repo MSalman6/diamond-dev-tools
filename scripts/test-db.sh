@@ -43,7 +43,7 @@ sleep 10
 # Check if database is responding with connection test
 echo "🔍 Checking database connectivity..."
 for i in {1..30}; do
-    if PGPASSWORD=$DMD_DB_POSTGRES_PASS psql -h 127.0.0.1 -p $DMD_DB_POSTGRES_PORT -U postgres -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+    if docker compose -f docker-compose-persistent.yml exec -T db pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
         echo "✅ Database is ready"
         break
     fi
@@ -59,8 +59,7 @@ done
 echo "📝 Applying database migrations..."
 cd ..
 sleep 3
-ENCODED_PASS=$(python3 -c "import urllib.parse, os; print(urllib.parse.quote(os.environ['DMD_DB_POSTGRES_PASS'], safe=''))")
-npx @databases/pg-migrations apply -c "postgres://postgres:$ENCODED_PASS@127.0.0.1:$DMD_DB_POSTGRES_PORT/postgres" -D db/migrations
+./scripts/apply-migrations.sh
 
 echo ""
 echo "🎉 Database fresh setup completed successfully!"

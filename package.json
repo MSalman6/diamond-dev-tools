@@ -119,7 +119,7 @@
     "db-delete-tables": "ts-node src/db/delete-tables.ts",
     "db-create-tables": "ts-node src/db/create-tables.ts",
     "db-docker-delete-image": "echo deleting of cached image is required if container-content files are changed. && docker image rm db-db",
-    "db-apply-migrations": "sleep 3 && npx @databases/pg-migrations apply -c postgres://postgres:$DMD_DB_POSTGRES@$DMD_DB_POSTGRES_HOST:$DMD_DB_POSTGRES_PORT/postgres -D db/migrations",
+    "db-apply-migrations": "sleep 3 && ./scripts/apply-migrations.sh",
     "localnet-blockscout-fresh": "cd testnet/blockscout-local && docker compose down && docker compose up",
     "localnet-fresh": "ts-node ./src/localnet/runCreateTestnet.ts",
     "localnet-fresh-TESTNAME": "ts-node ./src/localnet/runCreateTestnet.ts --network=nodes-local-test-$TESTNAME",
@@ -275,7 +275,6 @@
   "license": "GPL-3.0-or-later",
   "dependencies": {
     "@databases/pg": "^5.4.1",
-    "@databases/pg-migrations": "^5.0.2",
     "@databases/pg-schema-cli": "^4.3.1",
     "@databases/pg-typed": "^4.4.1",
     "@types/async": "^3.2.15",

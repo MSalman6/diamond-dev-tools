@@ -29,17 +29,25 @@ CREATE TABLE IF NOT EXISTS bonus_score_change_reasons (
 
 -- Add foreign key constraints to maintain data integrity
 -- These reference existing tables without modifying them
-ALTER TABLE bonus_score_change_reasons 
-    ADD CONSTRAINT fk_bonus_score_change_node 
-    FOREIGN KEY (node_pool_address) 
-    REFERENCES node(pool_address) 
-    ON DELETE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_bonus_score_change_node') THEN
+        ALTER TABLE bonus_score_change_reasons
+            ADD CONSTRAINT fk_bonus_score_change_node
+            FOREIGN KEY (node_pool_address)
+            REFERENCES node(pool_address)
+            ON DELETE CASCADE;
+    END IF;
 
-ALTER TABLE bonus_score_change_reasons 
-    ADD CONSTRAINT fk_bonus_score_change_block 
-    FOREIGN KEY (block_number) 
-    REFERENCES headers(block_number) 
-    ON DELETE CASCADE;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_bonus_score_change_block') THEN
+        ALTER TABLE bonus_score_change_reasons
+            ADD CONSTRAINT fk_bonus_score_change_block
+            FOREIGN KEY (block_number)
+            REFERENCES headers(block_number)
+            ON DELETE CASCADE;
+    END IF;
+END
+$$;
 
 -- Create indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_bonus_score_change_node 

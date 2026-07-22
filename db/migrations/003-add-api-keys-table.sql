@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS api_keys (
 );
 
 -- Create index for faster key lookups
-CREATE INDEX idx_api_keys_hash ON api_keys(key_hash);
-CREATE INDEX idx_api_keys_enabled ON api_keys(enabled);
-CREATE INDEX idx_api_keys_type ON api_keys(key_type);
+CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_api_keys_enabled ON api_keys(enabled);
+CREATE INDEX IF NOT EXISTS idx_api_keys_type ON api_keys(key_type);
 
 -- Add comment for documentation
 COMMENT ON TABLE api_keys IS 'Stores API keys for authentication and rate limiting. Keys are hashed for security.';
